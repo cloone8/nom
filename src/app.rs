@@ -1,10 +1,10 @@
 use leptos::logging::log;
 use leptos::prelude::*;
 use leptos::reactive::spawn_local;
-use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
+use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::{
-    components::{Route, Router, Routes},
     StaticSegment,
+    components::{Route, Router, Routes},
 };
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -27,7 +27,8 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 
 #[server]
 pub async fn log_on_server(msg: String) -> Result<(), ServerFnError> {
-    Err(ServerFnError::ServerError("panik!".to_string()))
+    log!("Message: {msg}");
+    Ok(())
 }
 
 #[component]
@@ -59,6 +60,7 @@ pub fn App() -> impl IntoView {
 fn HomePage() -> impl IntoView {
     // Creates a reactive value to update the button
     let count = RwSignal::new(0);
+
     let on_click = move |_| {
         *count.write() += 1;
         log!("Test log");
