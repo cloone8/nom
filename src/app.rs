@@ -120,7 +120,7 @@ fn RecipePage() -> impl IntoView {
             .unwrap()
     };
 
-    let fetch = async || {
+    let fetch = async move || {
         let id = move || {
             use_params::<RecipeArgs>()
                 .read()
