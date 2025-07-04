@@ -2,10 +2,15 @@ use leptos::logging::log;
 use leptos::prelude::*;
 use leptos::reactive::spawn_local;
 use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
+use leptos_router::hooks::use_params;
+use leptos_router::path;
 use leptos_router::{
     StaticSegment,
     components::{Route, Router, Routes},
+    params::Params,
 };
+
+use crate::recipe::{Recipe, RecipeComponent};
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -42,13 +47,14 @@ pub fn App() -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/nom_front.css"/>
 
         // sets the document title
-        <Title text="Welcome to Leptos"/>
+        <Title text="NomNomNom"/>
 
         // content for this welcome page
         <Router>
             <main>
                 <Routes fallback=|| "Page not found.".into_view()>
-                    <Route path=StaticSegment("") view=HomePage/>
+                    <Route path=path!("/") view=HomePage/>
+                    <Route path=path!("/recipe/:id") view=RecipePage/>
                 </Routes>
             </main>
         </Router>
@@ -58,19 +64,33 @@ pub fn App() -> impl IntoView {
 /// Renders the home page of your application.
 #[component]
 fn HomePage() -> impl IntoView {
-    // Creates a reactive value to update the button
-    let count = RwSignal::new(0);
+    view! {
+        <h1>"Het NomNomNom Receptenboek"</h1>
+        <a href="/recipe/test">"Test recept"</a>
+    }
+}
 
-    let on_click = move |_| {
-        *count.write() += 1;
-        log!("Test log");
-        spawn_local(async {
-            log_on_server("Piepiepoepoe".to_string()).await.unwrap();
-        });
+#[derive(Debug, Params, PartialEq)]
+struct RecipeArgs {
+    id: Option<String>,
+}
+
+#[component]
+fn RecipePage() -> impl IntoView {
+    let id = move || {
+        use_params::<RecipeArgs>()
+            .read()
+            .as_ref()
+            .ok()
+            .and_then(|params| params.id.clone())
+            .unwrap()
     };
 
+    let test_recipe = Recipe::test();
+
     view! {
-        <h1>"Welcome to Leptos!"</h1>
-        <button on:click=on_click>"Click Me: " {count}</button>
+        <h1>"Het NomNomNom Receptenboek " {id}</h1>
+        <RecipeComponent recipe={test_recipe}/>
+        <a href="/">"Terug"</a>
     }
 }
