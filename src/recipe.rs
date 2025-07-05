@@ -109,22 +109,29 @@ pub async fn list_recipes() -> Result<Vec<ListedRecipe>, ServerFnError> {
 }
 
 #[server]
-pub async fn get_recipe(id: i64) -> Result<Recipe, ServerFnError> {
+pub async fn get_recipe(id: i64) -> Result<Option<Recipe>, ServerFnError> {
     use crate::DB;
+    use rusqlite::OptionalExtension;
 
     let db = DB.lock().await;
 
     let mut get_recipe_stmt = db
         .prepare_cached("SELECT title, instructions FROM recipes WHERE id = (?1);")
-        .unwrap();
+        .expect("Invalid statement");
 
-    let (title, instructions) = get_recipe_stmt
+    let (title, instructions) = if let Some((title, instructions)) = get_recipe_stmt
         .query_one((id,), |row| Ok((row.get(0).unwrap(), row.get(1).unwrap())))
-        .unwrap();
+        .optional()
+        .unwrap()
+    {
+        (title, instructions)
+    } else {
+        return Ok(None);
+    };
 
     let mut get_ingredients_stmt = db
         .prepare_cached("SELECT ingredient FROM ingredients WHERE recipe = (?1);")
-        .unwrap();
+        .expect("Invalid statement");
 
     let ingredients = get_ingredients_stmt
         .query_map((id,), |row| Ok(row.get(0).unwrap()))
@@ -132,9 +139,9 @@ pub async fn get_recipe(id: i64) -> Result<Recipe, ServerFnError> {
         .map(Result::unwrap)
         .collect();
 
-    Ok(Recipe {
+    Ok(Some(Recipe {
         title,
         ingredients,
         instructions,
-    })
+    }))
 }

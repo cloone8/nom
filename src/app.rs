@@ -122,16 +122,23 @@ fn RecipePage() -> impl IntoView {
 
     let recipe_resource = Resource::new(id, async |id| {
         if id == "test" {
-            Recipe::test()
+            Some(Recipe::test())
         } else {
             get_recipe(id.parse().unwrap()).await.unwrap()
         }
     });
 
+    let render_recipe = move || {
+        recipe_resource.get().map(|recipe| match recipe {
+            Some(recipe) => view! {<RecipeComponent recipe={recipe}/> }.into_any(),
+            None => view! { <h2>"Onbekend recept"</h2>}.into_any(),
+        })
+    };
+
     view! {
         <h1>"Het NomNomNom Receptenboek " {id}</h1>
         <Suspense fallback=move || view!{ <p>"Recept aan het laden..."</p>}>
-            {move || recipe_resource.get().map(|rcp| view! {<RecipeComponent recipe={rcp}/> })}
+            {render_recipe}
         </Suspense>
     }
 }
