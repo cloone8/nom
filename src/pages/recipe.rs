@@ -2,7 +2,7 @@ use leptos::prelude::*;
 use leptos_router::hooks::use_params;
 use leptos_router::params::Params;
 
-use crate::recipe::{Recipe, RecipeComponent, get_recipe};
+use crate::recipe::{RecipeComponent, get_recipe};
 
 #[derive(Debug, Params, PartialEq)]
 struct RecipeArgs {
@@ -21,16 +21,13 @@ pub fn RecipePage() -> impl IntoView {
     };
 
     let recipe_resource = Resource::new(id, async |id| {
-        if id == "test" {
-            Some(Recipe::test())
-        } else {
-            get_recipe(id.parse().unwrap()).await.unwrap()
-        }
+        let parsed: i64 = id.parse().unwrap();
+        (parsed, get_recipe(parsed).await.unwrap())
     });
 
     let render_recipe = move || {
-        recipe_resource.get().map(|recipe| match recipe {
-            Some(recipe) => view! {<RecipeComponent recipe={recipe}/> }.into_any(),
+        recipe_resource.get().map(|(id, recipe)| match recipe {
+            Some(recipe) => view! {<RecipeComponent id={id} recipe={recipe}/> }.into_any(),
             None => view! { <h2>"Onbekend recept"</h2>}.into_any(),
         })
     };

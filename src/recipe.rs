@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos_router::components::A;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,22 +16,8 @@ pub struct Recipe {
     pub instructions: String,
 }
 
-impl Recipe {
-    pub fn test() -> Self {
-        Recipe {
-            title: "Het Testrecept".to_string(),
-            ingredients: vec![
-                "1 ui".to_string(),
-                "twee planten".to_string(),
-                "Een heel paard".to_string(),
-            ],
-            instructions: "Kook het paard met de twee planten en de ui. Klaar!".to_string(),
-        }
-    }
-}
-
 #[component]
-pub fn RecipeComponent(recipe: Recipe) -> impl IntoView {
+pub fn RecipeComponent(id: i64, recipe: Recipe) -> impl IntoView {
     let ingredients = recipe
         .ingredients
         .iter()
@@ -43,11 +30,13 @@ pub fn RecipeComponent(recipe: Recipe) -> impl IntoView {
         <h2>{recipe.title}</h2>
         <ul>{ingredients}</ul>
         <p>{recipe.instructions}</p>
+        <br/>
+        <A href={format!("/edit/{id}")}>"Aanpassen"</A>
     }
 }
 
 #[server]
-pub async fn new_recipe(raw_recipe: RawRecipe) -> Result<(), ServerFnError> {
+pub async fn new_recipe(raw_recipe: RawRecipe) -> Result<i64, ServerFnError> {
     use crate::DB;
 
     let ingredients_split: Vec<&str> = raw_recipe.ingredients.lines().collect();
@@ -79,7 +68,65 @@ pub async fn new_recipe(raw_recipe: RawRecipe) -> Result<(), ServerFnError> {
 
     transaction.commit()?;
 
-    Ok(())
+    Ok(new_recipe_id)
+}
+
+#[server]
+pub async fn update_recipe(recipe_id: i64, raw_recipe: RawRecipe) -> Result<Recipe, ServerFnError> {
+    use crate::DB;
+
+    // Smaller scope because the future is !Send otherwise
+    {
+        let mut db = DB.lock().await;
+
+        let transaction = db.transaction()?;
+
+        // First delete the old recipes
+        {
+            let mut delete_ingredients_stmt = transaction
+                .prepare_cached("DELETE FROM ingredients WHERE recipe = (?1);")
+                .expect("Malformed query");
+
+            _ = delete_ingredients_stmt
+                .execute((recipe_id,))
+                .expect("Failed to delete previous ingredients");
+        }
+
+        // Insert the new ones
+        let ingredients_split: Vec<&str> = raw_recipe.ingredients.lines().collect();
+
+        {
+            let mut new_ingredient_stmt = transaction
+                .prepare_cached("INSERT INTO ingredients (recipe, ingredient) VALUES (?1, ?2);")?;
+
+            for ingredient in ingredients_split {
+                let inserted = new_ingredient_stmt.execute((recipe_id, ingredient))?;
+                assert_eq!(1, inserted);
+            }
+        }
+
+        // Update the recipe itself
+        {
+            let mut update_recipe_stmt = transaction.prepare_cached(
+                "UPDATE recipes SET title = ?1, instructions = ?2 WHERE id = ?3;",
+            )?;
+
+            let updated = update_recipe_stmt.execute((
+                raw_recipe.title,
+                raw_recipe.instructions,
+                recipe_id,
+            ))?;
+
+            assert_eq!(1, updated);
+        }
+
+        transaction.commit()?;
+
+        std::mem::drop(db);
+    }
+
+    let updated_recipe = get_recipe(recipe_id).await.unwrap();
+    Ok(updated_recipe.expect("Could not find updated recipe"))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

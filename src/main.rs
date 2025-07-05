@@ -8,7 +8,10 @@ async fn main() {
     use nom::app::*;
     use nom::auth::middleware::auth_middleware;
 
-    let conf = get_configuration(None).unwrap();
+    let conf = get_configuration(Some("./Cargo.toml")).unwrap();
+
+    log!("Using config: {:#?}", conf.leptos_options);
+
     let addr = conf.leptos_options.site_addr;
     let leptos_options = conf.leptos_options;
 
