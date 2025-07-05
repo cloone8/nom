@@ -120,28 +120,19 @@ fn RecipePage() -> impl IntoView {
             .unwrap()
     };
 
-    let fetch = async move || {
-        let id = move || {
-            use_params::<RecipeArgs>()
-                .read()
-                .as_ref()
-                .ok()
-                .and_then(|params| params.id.clone())
-                .unwrap()
-        };
-
-        if id() == "test" {
+    let recipe_resource = Resource::new(id, async |id| {
+        if id == "test" {
             Recipe::test()
         } else {
-            get_recipe(id().parse().unwrap()).await.unwrap()
+            get_recipe(id.parse().unwrap()).await.unwrap()
         }
-    };
+    });
 
     view! {
         <h1>"Het NomNomNom Receptenboek " {id}</h1>
-        <Await future=fetch() let:recipe>
-            <RecipeComponent recipe={recipe.clone()}/>
-        </Await>
+        <Suspense fallback=move || view!{ <p>"Recept aan het laden..."</p>}>
+            {move || recipe_resource.get().map(|rcp| view! {<RecipeComponent recipe={rcp}/> })}
+        </Suspense>
     }
 }
 
