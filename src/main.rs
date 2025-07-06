@@ -7,6 +7,7 @@ async fn main() {
     use leptos_axum::{LeptosRoutes, generate_route_list};
     use nom::app::*;
     use nom::auth::middleware::auth_middleware;
+    use tower_http::compression::CompressionLayer;
 
     let conf = get_configuration(Some("./Cargo.toml")).unwrap();
 
@@ -23,8 +24,9 @@ async fn main() {
             let leptos_options = leptos_options.clone();
             move || shell(leptos_options.clone())
         })
-        .layer(axum::middleware::from_fn(auth_middleware))
         .fallback(leptos_axum::file_and_error_handler(shell))
+        .layer(axum::middleware::from_fn(auth_middleware))
+        .layer(CompressionLayer::new())
         .with_state(leptos_options);
 
     // run our app with hyper
