@@ -2,6 +2,7 @@ pub mod app;
 pub mod auth;
 pub mod pages;
 pub mod recipe;
+pub mod log;
 
 #[cfg(feature = "ssr")]
 pub static DB: std::sync::LazyLock<tokio::sync::Mutex<rusqlite::Connection>> =
