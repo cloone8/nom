@@ -7,6 +7,7 @@ async fn main() {
     use leptos_axum::{LeptosRoutes, generate_route_list};
     use nom::app::*;
     use nom::auth::middleware::auth_middleware;
+    use tower_http::CompressionLevel;
     use tower_http::compression::CompressionLayer;
 
     let conf = get_configuration(Some("./Cargo.toml")).unwrap();
@@ -26,7 +27,7 @@ async fn main() {
         })
         .fallback(leptos_axum::file_and_error_handler(shell))
         .layer(axum::middleware::from_fn(auth_middleware))
-        .layer(CompressionLayer::new())
+        .layer(CompressionLayer::new().quality(CompressionLevel::Best))
         .with_state(leptos_options);
 
     // run our app with hyper
