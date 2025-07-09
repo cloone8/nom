@@ -25,7 +25,7 @@ pub fn HomePage() -> impl IntoView {
                         let url = format!("/recipe/{}", rp.id);
 
                         view! {
-                            <li><a href={url}>{rp.title.clone()}</a></li>
+                            <li class="recipe-link"><a href={url}>{rp.title.clone()}</a></li>
                         }
                     }).collect_view()
                 }

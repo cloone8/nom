@@ -1,11 +1,98 @@
 html {
 	background-color: #EEEEEE;
-	padding: 0 10px;
+	padding: 1em;
 	font-family: Helvetica, sans-serif;
 }
 
 main {
-	line-height: 1.4;
+	line-height: 1.5;
 	font-size: 18px;
 	color: #444;
+}
+
+.nom-navbar {
+	padding: 0 0.1em 0.6em 0.1em;
+
+	border-bottom-style: solid;
+	border-bottom-width: 0.2em;
+	border-bottom-color: #CCCCCC;
+}
+
+form {
+
+	input,
+	textarea {
+		font-size: inherit;
+		font-family: inherit;
+
+		box-sizing: border-box;
+		line-height: inherit;
+		width: 48em;
+		max-width: 100%;
+
+		padding: 0.6em 0.8em;
+
+		border-style: none;
+		border-radius: 9px;
+
+	}
+}
+
+.recipe-link {
+	line-height: 3;
+	list-style: disclosure-closed;
+	font-size: larger;
+	font-weight: bolder;
+}
+
+.link-button {
+	display: inline-block;
+
+	width: fit-content;
+	height: 1.2em;
+	line-height: 1;
+	box-sizing: content-box;
+	align-content: center;
+	vertical-align: middle;
+
+	padding: 0.5em;
+	margin: 0.5em;
+
+	background-color: #DDDDDD;
+
+	border-style: solid;
+	border-width: 0.2em;
+	border-radius: 0.3em;
+	border-color: #AAAAAA;
+
+	font-size: inherit;
+	font-weight: bold;
+	font-family: inherit;
+
+	color: #003EAA;
+	text-decoration: none;
+
+	cursor: pointer;
+
+	&:hover {
+		transition: ease-in-out;
+		transition-duration: 0.2s;
+		background-color: #DDDDFF;
+
+		&.button-negative {
+			background-color: #FF6666;
+		}
+
+		&.button-positive {
+			background-color: #66FF66;
+		}
+	}
+
+	&.button-negative {
+		background-color: #FFDDDD;
+	}
+
+	&.button-positive {
+		background-color: #DDFFDD;
+	}
 }

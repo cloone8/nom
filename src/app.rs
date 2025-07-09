@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
-use leptos_router::components::{Route, Router, Routes};
+use leptos_router::components::{A, Route, Router, Routes};
 use leptos_router::path;
 
 use crate::pages::editrecipe::EditRecipePage;
@@ -41,9 +41,7 @@ pub fn App() -> impl IntoView {
 
         // content for this welcome page
         <Router>
-            <nav>
-                <NavBar/>
-            </nav>
+            <NavBar/>
             <main>
                 <Routes fallback=|| "Page not found.".into_view()>
                     <Route path=path!("/") view=HomePage/>
@@ -59,7 +57,9 @@ pub fn App() -> impl IntoView {
 #[component]
 fn NavBar() -> impl IntoView {
     view! {
-        <a href="/">"Home"</a><br/>
-        <a href="/new">"Nieuw recept"</a><br/>
+        <nav class="nom-navbar">
+            <A class:link-button href="/">"Home"</A>
+            <A class:link-button href="/new">"Nieuw recept"</A>
+        </nav>
     }
 }

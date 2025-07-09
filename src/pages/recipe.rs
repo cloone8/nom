@@ -33,7 +33,6 @@ pub fn RecipePage() -> impl IntoView {
     };
 
     view! {
-        <h1>"Het NomNomNom Receptenboek " {id}</h1>
         <Suspense fallback=move || view!{ <p>"Recept aan het laden..."</p>}>
             {render_recipe}
         </Suspense>

@@ -27,11 +27,13 @@ pub fn RecipeComponent(id: i64, recipe: Recipe) -> impl IntoView {
         .collect_view();
 
     view! {
-        <h2>{recipe.title}</h2>
-        <ul>{ingredients}</ul>
-        <p>{recipe.instructions}</p>
-        <br/>
-        <A href={format!("/edit/{id}")}>"Aanpassen"</A>
+        <div class="recipe">
+            <h1>{recipe.title}</h1>
+            <ul>{ingredients}</ul>
+            <p>{recipe.instructions}</p>
+            <br/>
+            <A class:link-button href={format!("/edit/{id}")}>"Aanpassen"</A>
+        </div>
     }
 }
 
@@ -196,4 +198,39 @@ pub async fn get_recipe(id: i64) -> Result<Option<Recipe>, ServerFnError> {
         ingredients,
         instructions,
     }))
+}
+
+#[server]
+pub async fn delete_recipe(recipe_id: i64) -> Result<(), ServerFnError> {
+    use crate::DB;
+
+    let mut db = DB.lock().await;
+
+    let transaction = db.transaction()?;
+
+    {
+        let mut delete_ingredients_stmt = transaction
+            .prepare_cached("DELETE FROM ingredients WHERE recipe = (?1);")
+            .expect("Malformed query");
+
+        _ = delete_ingredients_stmt
+            .execute((recipe_id,))
+            .expect("Failed to  ingredients");
+    }
+
+    {
+        let mut delete_recipe_stmt = transaction
+            .prepare_cached("DELETE FROM recipes WHERE id = (?1);")
+            .expect("Malformed query");
+
+        let num_deleted = delete_recipe_stmt
+            .execute((recipe_id,))
+            .expect("Failed to recipe");
+
+        assert_eq!(1, num_deleted, "Deleted an unexpected number of recipes");
+    }
+
+    transaction.commit()?;
+
+    Ok(())
 }

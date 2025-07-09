@@ -47,7 +47,7 @@ pub fn NewRecipePage() -> impl IntoView {
             <h3>Instructies</h3>
             <textarea placeholder="Instructies" node_ref=instruction_elem/>
             <br/>
-            <input type="submit" value="Maak"/>
+            <input class="link-button button-positive" type="submit" value="Maak"/>
         </form>
     }
 }

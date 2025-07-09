@@ -6,8 +6,9 @@ use leptos_router::NavigateOptions;
 use leptos_router::components::A;
 use leptos_router::hooks::use_params;
 use leptos_router::params::Params;
+use web_sys::MouseEvent;
 
-use crate::recipe::{RawRecipe, get_recipe, update_recipe};
+use crate::recipe::{RawRecipe, delete_recipe, get_recipe, update_recipe};
 
 #[derive(Debug, Params, PartialEq)]
 struct EditRecipeArgs {
@@ -62,6 +63,26 @@ pub fn EditRecipePage() -> impl IntoView {
         });
     };
 
+    let delete_handler = |e: MouseEvent, id| {
+        e.prevent_default();
+
+        spawn_local(async move {
+            if !web_sys::window()
+                .unwrap()
+                .confirm_with_message("Weet je zeker dat je het recept wilt verwijderen?")
+                .unwrap()
+            {
+                return;
+            }
+
+            delete_recipe(id).await.unwrap();
+
+            let navigate = leptos_router::hooks::use_navigate();
+
+            navigate("/", NavigateOptions::default());
+        });
+    };
+
     view! {
         <h1>"Recept Aanpassen"</h1>
         <Suspense fallback=move || view!{ <p>"Recept aan het laden..."</p>}> {
@@ -84,13 +105,15 @@ pub fn EditRecipePage() -> impl IntoView {
                         <input type="text" placeholder="Titel" value={recipe.title} node_ref=title_elem/>
                         <br/>
                         <h3>Ingredienten</h3>
-                        <textarea placeholder="Ingredienten" node_ref=ingredient_elem>{ingredients}</textarea>
+                        <textarea placeholder="Ingredienten" node_ref=ingredient_elem rows={recipe.ingredients.len() + 2}>{ingredients}</textarea>
                         <br/>
                         <h3>Instructies</h3>
                         <textarea placeholder="Instructies" node_ref=instruction_elem>{recipe.instructions}</textarea>
                         <br/>
-                        <A href={format!("/recipe/{id}")}>"Annuleer"</A>
-                        <input type="submit" value="Pas aan"/>
+                        <A class:link-button class:button-negative href={format!("/recipe/{id}")}>"Annuleer"</A>
+                        <input class="link-button button-positive" type="submit" value="Pas aan"/>
+                        <br/>
+                        <button class:link-button class:button-negative on:click=move |e| delete_handler(e, id)>"Verwijder"</button>
                     </form>
                 }.into_any()
             }
