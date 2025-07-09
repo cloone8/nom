@@ -3,6 +3,7 @@ use leptos::html;
 use leptos::prelude::*;
 use leptos::reactive::spawn_local;
 use leptos_router::NavigateOptions;
+use leptos_router::components::A;
 use leptos_router::hooks::use_params;
 use leptos_router::params::Params;
 
@@ -88,6 +89,7 @@ pub fn EditRecipePage() -> impl IntoView {
                         <h3>Instructies</h3>
                         <textarea placeholder="Instructies" node_ref=instruction_elem>{recipe.instructions}</textarea>
                         <br/>
+                        <A href={format!("/recipe/{id}")}>"Annuleer"</A>
                         <input type="submit" value="Pas aan"/>
                     </form>
                 }.into_any()

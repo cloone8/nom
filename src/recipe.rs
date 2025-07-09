@@ -93,7 +93,12 @@ pub async fn update_recipe(recipe_id: i64, raw_recipe: RawRecipe) -> Result<Reci
         }
 
         // Insert the new ones
-        let ingredients_split: Vec<&str> = raw_recipe.ingredients.lines().collect();
+        let ingredients_split: Vec<&str> = raw_recipe
+            .ingredients
+            .lines()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect();
 
         {
             let mut new_ingredient_stmt = transaction
