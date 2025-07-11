@@ -234,3 +234,20 @@ pub async fn delete_recipe(recipe_id: i64) -> Result<(), ServerFnError> {
 
     Ok(())
 }
+
+#[server]
+pub async fn random_recipe() -> Result<Option<i64>, ServerFnError> {
+    use crate::DB;
+    use rusqlite::OptionalExtension;
+
+    let db = DB.lock().await;
+
+    Ok(db
+        .query_one(
+            "SELECT id FROM recipes ORDER BY RANDOM() LIMIT 1;",
+            (),
+            |row| Ok(row.get::<_, i64>(0).unwrap()),
+        )
+        .optional()
+        .expect("Failed to read random ID"))
+}

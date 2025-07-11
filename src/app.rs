@@ -1,12 +1,15 @@
 use leptos::prelude::*;
+use leptos::reactive::spawn_local;
 use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::components::{A, Route, Router, Routes};
-use leptos_router::path;
+use leptos_router::{NavigateOptions, path};
+use web_sys::MouseEvent;
 
 use crate::pages::editrecipe::EditRecipePage;
 use crate::pages::home::HomePage;
 use crate::pages::newrecipe::NewRecipePage;
 use crate::pages::recipe::RecipePage;
+use crate::recipe::random_recipe;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -56,10 +59,33 @@ pub fn App() -> impl IntoView {
 
 #[component]
 fn NavBar() -> impl IntoView {
+    let random_recipe = |ev: MouseEvent| {
+        ev.prevent_default();
+
+        spawn_local(async {
+            let random_recipe_id = random_recipe().await.unwrap();
+
+            match random_recipe_id {
+                Some(id) => {
+                    let navigate = leptos_router::hooks::use_navigate();
+
+                    navigate(format!("/recipe/{id}").as_str(), NavigateOptions::default());
+                }
+                None => {
+                    web_sys::window()
+                        .unwrap()
+                        .alert_with_message("Er zijn nog geen recepted. Voeg er eentje toe!")
+                        .unwrap();
+                }
+            }
+        });
+    };
+
     view! {
         <nav class="nom-navbar">
             <A class:link-button href="/">"Home"</A>
             <A class:link-button href="/new">"Nieuw recept"</A>
+            <button class:link-button on:click=random_recipe>"Random"</button>
         </nav>
     }
 }
