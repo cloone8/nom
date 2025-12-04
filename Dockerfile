@@ -1,5 +1,5 @@
 # Builder image. Keep rust-toolchain file in sync with Rust version here
-FROM rust:1.88.0-alpine AS builder
+FROM rust:1.91.1-alpine AS builder
 
 RUN rustup target add wasm32-unknown-unknown
 
@@ -8,7 +8,7 @@ RUN apk add --no-cache alpine-sdk perl npm
 
 RUN npm install -g sass
 
-RUN cargo install --locked cargo-leptos@0.2.37
+RUN cargo install --locked cargo-leptos@0.3.1
 
 RUN mkdir -p /app
 WORKDIR /app

@@ -26,9 +26,9 @@ async fn main() {
             move || shell(leptos_options.clone())
         })
         .fallback(leptos_axum::file_and_error_handler(shell))
-        .layer(axum::middleware::from_fn(log_middleware))
-        .layer(axum::middleware::from_fn(auth_middleware))
         .layer(CompressionLayer::new())
+        .layer(axum::middleware::from_fn(auth_middleware))
+        .layer(axum::middleware::from_fn(log_middleware))
         .with_state(leptos_options);
 
     // run our app with hyper

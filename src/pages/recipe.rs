@@ -27,7 +27,9 @@ pub fn RecipePage() -> impl IntoView {
 
     let render_recipe = move || {
         recipe_resource.get().map(|(id, recipe)| match recipe {
-            Some(recipe) => view! {<RecipeComponent id={id} recipe={recipe}/> }.into_any(),
+            Some(recipe) => {
+                view! {<RecipeComponent id={id} recipe={recipe} with_mod=true/> }.into_any()
+            }
             None => view! { <h2>"Onbekend recept"</h2>}.into_any(),
         })
     };

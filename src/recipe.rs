@@ -17,7 +17,7 @@ pub struct Recipe {
 }
 
 #[component]
-pub fn RecipeComponent(id: i64, recipe: Recipe) -> impl IntoView {
+pub fn RecipeComponent(id: i64, recipe: Recipe, with_mod: bool) -> impl IntoView {
     let ingredients = recipe
         .ingredients
         .iter()
@@ -32,7 +32,7 @@ pub fn RecipeComponent(id: i64, recipe: Recipe) -> impl IntoView {
             <ul>{ingredients}</ul>
             <p>{recipe.instructions}</p>
             <br/>
-            <A class:link-button href={format!("/edit/{id}")}>"Aanpassen"</A>
+            {with_mod.then(|| view!{ <A class:link-button href={format!("/edit/{id}")}>"Aanpassen"</A>})}
         </div>
     }
 }

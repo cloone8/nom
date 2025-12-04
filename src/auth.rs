@@ -38,7 +38,9 @@ pub mod middleware {
         };
 
         if let Some(auth) = auth_header {
-            if auth.username() != username && auth.password() != password {
+            if auth.username() != username || auth.password() != password {
+                leptos::logging::log!("Incorrect username/password given: {username} {password}");
+
                 return Ok(auth_required());
             }
         } else {
