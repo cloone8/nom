@@ -24,7 +24,7 @@ COPY Cargo.toml Cargo.toml
 COPY Cargo.lock Cargo.lock
 
 # Build the actual webapp and server
-RUN cargo leptos build --release --precompress --lib-cargo-args "--locked" --bin-cargo-args "--locked" -vv
+RUN cargo leptos build --release --precompress --lib-cargo-args="--locked" --bin-cargo-args="--locked" -vv
 
 # Runner image. Just copies the artifacts
 FROM debian:trixie AS runner
