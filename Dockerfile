@@ -1,14 +1,17 @@
 # Builder image. Keep rust-toolchain file in sync with Rust version here
-FROM rust:1.91.1-alpine AS builder
+FROM rust:1.95.0-trixie AS builder
+
+RUN apt-get update && apt-get upgrade -y
 
 RUN rustup target add wasm32-unknown-unknown
 
 # Additional build tools needed for/by cargo-leptos
-RUN apk add --no-cache alpine-sdk perl npm
+RUN apt-get install npm -y
+# RUN apk add --no-cache alpine-sdk perl npm
 
 RUN npm install -g sass
 
-RUN cargo install --locked cargo-leptos@0.3.1
+RUN cargo install --locked cargo-leptos@0.3.6
 
 RUN mkdir -p /app
 WORKDIR /app
@@ -21,10 +24,10 @@ COPY Cargo.toml Cargo.toml
 COPY Cargo.lock Cargo.lock
 
 # Build the actual webapp and server
-RUN cargo leptos build --release -vv
+RUN cargo leptos build --release --precompress --lib-cargo-args "--locked" --bin-cargo-args "--locked" -vv
 
 # Runner image. Just copies the artifacts
-FROM alpine:latest AS runner
+FROM debian:trixie AS runner
 
 WORKDIR /app
 
