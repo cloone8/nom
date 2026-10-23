@@ -1,5 +1,5 @@
 # Builder image. Keep rust-toolchain file in sync with Rust version here
-FROM rust:1.95.0-trixie AS builder
+FROM rust:1.99.1-trixie AS builder
 
 RUN apt-get update && apt-get upgrade -y
 
@@ -11,7 +11,7 @@ RUN apt-get install npm -y
 
 RUN npm install -g sass
 
-RUN cargo install --locked cargo-leptos@0.3.6
+RUN cargo install --locked cargo-leptos@0.3.11
 
 RUN mkdir -p /app
 WORKDIR /app
