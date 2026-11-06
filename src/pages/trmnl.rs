@@ -9,6 +9,8 @@ pub fn TrmnlPage() -> impl IntoView {
     let recipe = OnceResource::new(get_random_recipe_view());
 
     view! {
+        // Scopes the e-ink styles: pure black on white, sized for 800×480
+        <div class="trmnl">
         <Suspense>
             {move || Suspend::new(async move {
                 match recipe.await {
@@ -18,5 +20,6 @@ pub fn TrmnlPage() -> impl IntoView {
                 }
             })}
         </Suspense>
+        </div>
     }
 }

@@ -56,7 +56,7 @@ fn DeleteButton(id: i64) -> impl IntoView {
     };
 
     view! {
-        <ActionForm action=delete on:submit:capture=confirm>
+        <ActionForm action=delete on:submit:capture=confirm attr:class="delete-form">
             <input type="hidden" name="id" value=id/>
             <input class="link-button button-negative" type="submit" value="Verwijder"/>
         </ActionForm>

@@ -43,13 +43,25 @@ impl From<RecipeSource> for RecipeView {
 
 #[component]
 pub fn RecipeComponent(recipe: RecipeView, with_edit: bool) -> impl IntoView {
+    // An empty field renders to "", and then its heading would stand alone
+    let section = |class: &'static str, heading: &'static str, html: String| {
+        (!html.is_empty()).then(|| {
+            view! {
+                <section class=class>
+                    <h2>{heading}</h2>
+                    <div class="markdown" inner_html=html></div>
+                </section>
+            }
+        })
+    };
+
     view! {
         <article class="recipe">
             <h1>{recipe.title}</h1>
-            <div class="ingredients markdown" inner_html=recipe.ingredients_html></div>
-            <div class="instructions markdown" inner_html=recipe.instructions_html></div>
+            {section("ingredients", "Ingrediënten", recipe.ingredients_html)}
+            {section("instructions", "Bereiding", recipe.instructions_html)}
             {with_edit.then(|| view! {
-                <A attr:class="link-button" href=format!("/edit/{}", recipe.id)>"Aanpassen"</A>
+                <A attr:class="link-button edit" href=format!("/edit/{}", recipe.id)>"Aanpassen"</A>
             })}
         </article>
     }

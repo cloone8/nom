@@ -1,98 +1,531 @@
-html {
-	background-color: #EEEEEE;
-	padding: 1em;
-	font-family: Helvetica, sans-serif;
+// Palette: light by default, dark via prefers-color-scheme.
+// .trmnl and print force pure black on white further down.
+:root {
+	color-scheme: light dark;
+
+	--bg: #f7f5f0;
+	--surface: #ffffff;
+	--text: #24211d;
+	--muted: #6b645a;
+	--border: #e2ddd3;
+	--field-border: #8a8378;
+	--accent: #2f6b3a;
+	--accent-hover: #245530;
+	--accent-soft: #e6efe4;
+	--on-accent: #ffffff;
+	--danger: #b3261e;
+	--danger-soft: #fbe9e7;
+
+	--radius: 0.5rem;
+	--gutter: 1rem;
+	--measure: 65ch; // comfortable line length for running text
+	--page: 52rem; // content width on desktop
 }
 
-main {
-	line-height: 1.5;
-	font-size: 18px;
-	color: #444;
-}
-
-.nom-navbar {
-	padding: 0 0.1em 0.6em 0.1em;
-
-	border-bottom-style: solid;
-	border-bottom-width: 0.2em;
-	border-bottom-color: #CCCCCC;
-}
-
-form {
-
-	input,
-	textarea {
-		font-size: inherit;
-		font-family: inherit;
-
-		box-sizing: border-box;
-		line-height: inherit;
-		width: 48em;
-		max-width: 100%;
-
-		padding: 0.6em 0.8em;
-
-		border-style: none;
-		border-radius: 9px;
-
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #1a1917;
+		--surface: #24221f;
+		--text: #ece8e1;
+		--muted: #a8a197;
+		--border: #3a3630;
+		--field-border: #857e73;
+		--accent: #8fc79a;
+		--accent-hover: #a6d6b0;
+		--accent-soft: #26332a;
+		--on-accent: #1a1917;
+		--danger: #f08a80;
+		--danger-soft: #3a2321;
 	}
 }
 
-.recipe-link {
-	line-height: 3;
-	list-style: disclosure-closed;
-	font-size: larger;
-	font-weight: bolder;
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
 }
 
-.link-button {
-	display: inline-block;
+html {
+	background: var(--bg);
+	color: var(--text);
+	font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	line-height: 1.6;
+	-webkit-text-size-adjust: 100%;
+	text-size-adjust: 100%;
+}
 
-	width: fit-content;
-	height: 1.2em;
-	line-height: 1;
-	box-sizing: content-box;
-	align-content: center;
-	vertical-align: middle;
+body {
+	margin: 0;
+	font-size: 1.125rem; // 18px
+}
 
-	padding: 0.5em;
-	margin: 0.5em;
+// Navbar and main are full width; the padding centres their content in a --page column.
+.nom-navbar,
+main {
+	padding-inline: max(var(--gutter), (100% - var(--page)) / 2);
+}
 
-	background-color: #DDDDDD;
+main {
+	padding-block: 1.5rem 3rem;
+}
 
-	border-style: solid;
-	border-width: 0.2em;
-	border-radius: 0.3em;
-	border-color: #AAAAAA;
+h1,
+h2,
+h3 {
+	margin: 0 0 0.75rem;
+	line-height: 1.2;
+}
 
-	font-size: inherit;
-	font-weight: bold;
-	font-family: inherit;
+h1 {
+	font-size: clamp(1.75rem, 1.4rem + 1.5vw, 2.25rem);
+	letter-spacing: -0.01em;
+}
 
-	color: #003EAA;
-	text-decoration: none;
+h2 {
+	font-size: 1.25rem;
+}
 
-	cursor: pointer;
+p,
+ul,
+ol {
+	margin: 0 0 1rem;
+}
+
+a {
+	color: var(--accent);
+	text-underline-offset: 0.15em;
 
 	&:hover {
-		transition: ease-in-out;
-		transition-duration: 0.2s;
-		background-color: #DDDDFF;
+		color: var(--accent-hover);
+	}
+}
 
-		&.button-negative {
-			background-color: #FF6666;
+code {
+	padding: 0.1em 0.3em;
+	background: var(--accent-soft);
+	border-radius: 0.25rem;
+	font-size: 0.9em;
+}
+
+:focus-visible {
+	outline: 3px solid var(--accent);
+	outline-offset: 2px;
+}
+
+.error {
+	color: var(--danger);
+	font-weight: 600;
+}
+
+// ---- Navbar ------------------------------------------------------------
+
+.nom-navbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem;
+	padding-block: 0.5rem;
+	background: var(--surface);
+	border-bottom: 1px solid var(--border);
+
+	// Nav items are quiet text links, not boxed buttons.
+	.link-button {
+		background: transparent;
+		border-color: transparent;
+		color: var(--text);
+
+		&:hover,
+		&[aria-current="page"] {
+			background: var(--accent-soft);
+			color: var(--accent);
 		}
+	}
+}
 
-		&.button-positive {
-			background-color: #66FF66;
+// ---- Buttons -----------------------------------------------------------
+// .link-button = neutral, .button-positive = primary, .button-negative = danger.
+
+.link-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 2.75rem; // >= 44px touch target
+	margin: 0;
+	padding: 0.5rem 1rem;
+
+	background: var(--surface);
+	border: 1px solid var(--field-border);
+	border-radius: var(--radius);
+
+	color: var(--text);
+	font: inherit;
+	font-weight: 600;
+	line-height: 1.2;
+	text-decoration: none;
+
+	appearance: none; // no native iOS button chrome on <input type=submit>
+	cursor: pointer;
+	transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+
+	&:hover {
+		background: var(--accent-soft);
+		color: var(--text);
+	}
+
+	&:disabled {
+		opacity: 0.6;
+		cursor: progress;
+	}
+
+	&.button-positive {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--on-accent);
+
+		&:hover {
+			background: var(--accent-hover);
+			border-color: var(--accent-hover);
 		}
 	}
 
 	&.button-negative {
-		background-color: #FFDDDD;
+		background: transparent;
+		border-color: currentColor;
+		color: var(--danger);
+
+		&:hover {
+			background: var(--danger-soft);
+		}
+	}
+}
+
+// ---- Fields -----------------------------------------------------------------
+
+input[type="text"],
+input[type="search"],
+textarea {
+	width: 100%;
+	padding: 0.6rem 0.8rem;
+	background: var(--surface);
+	border: 1px solid var(--field-border);
+	border-radius: var(--radius);
+	color: var(--text);
+	font: inherit;
+	font-weight: 400;
+	line-height: 1.5;
+	appearance: none;
+}
+
+// ---- Home: search and recipe list ---------------------------------------
+
+.search {
+	max-width: var(--measure);
+	margin-bottom: 1rem;
+}
+
+.recipe-list {
+	max-width: var(--measure);
+	padding: 0;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	overflow: hidden;
+}
+
+.recipe-link {
+	list-style: none;
+
+	& + & {
+		border-top: 1px solid var(--border);
 	}
 
-	&.button-positive {
-		background-color: #DDFFDD;
+	a {
+		display: block;
+		padding: 0.85rem 1rem;
+		color: var(--text);
+		font-weight: 600;
+		text-decoration: none;
+
+		&::after {
+			content: "›";
+			float: right;
+			color: var(--muted);
+		}
+
+		&:hover {
+			background: var(--accent-soft);
+			color: var(--accent);
+		}
+	}
+}
+
+// ---- Rendered Markdown (ingredients and instructions) ---------------------
+
+.markdown {
+	overflow-wrap: break-word;
+	hyphens: auto;
+
+	> :last-child {
+		margin-bottom: 0;
+	}
+
+	// Users' own headings stay below the page's h1 and section h2s
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
+		margin-top: 1.25rem;
+		font-size: 1.05rem;
+	}
+
+	ul,
+	ol {
+		padding-left: 1.25rem;
+	}
+
+	li + li {
+		margin-top: 0.35rem;
+	}
+
+	li::marker {
+		color: var(--accent);
+	}
+
+	// GFM task lists: `- [ ] item`
+	li:has(> input[type="checkbox"]) {
+		list-style: none;
+	}
+
+	blockquote {
+		margin: 0 0 1rem;
+		padding-left: 1rem;
+		border-left: 3px solid var(--border);
+		color: var(--muted);
+	}
+
+	pre {
+		overflow-x: auto;
+		padding: 0.75rem;
+		background: var(--accent-soft);
+		border-radius: var(--radius);
+
+		code {
+			padding: 0;
+			background: none;
+		}
+	}
+
+	table {
+		margin-bottom: 1rem;
+		border-collapse: collapse;
+	}
+
+	th,
+	td {
+		padding: 0.3rem 0.75rem 0.3rem 0;
+		border-bottom: 1px solid var(--border);
+		text-align: left;
+	}
+
+	img {
+		max-width: 100%;
+		height: auto;
+		border-radius: var(--radius);
+	}
+
+	hr {
+		border: 0;
+		border-top: 1px solid var(--border);
+	}
+}
+
+// ---- Recipe page -------------------------------------------------------
+
+.recipe {
+	> section {
+		margin-bottom: 1.5rem;
+	}
+
+	h2 {
+		color: var(--muted);
+		font-size: 0.85rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.ingredients {
+		padding: 1rem 1.25rem;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+	}
+
+	.instructions {
+		max-width: var(--measure);
+	}
+}
+
+// Wide screens: ingredients left (sticky while scrolling), instructions right.
+@media (min-width: 48rem) {
+	.recipe {
+		display: grid;
+		grid-template-columns: minmax(14rem, 1fr) minmax(0, 2fr); // minmax(0, …): long words can't widen the column
+		column-gap: 2.5rem;
+		align-items: start;
+
+		> h1,
+		> .edit {
+			grid-column: 1 / -1;
+		}
+
+		> .edit {
+			justify-self: start;
+		}
+
+		// Without ingredients, the instructions take the whole row
+		> .instructions:nth-child(2) {
+			grid-column: 1 / -1;
+		}
+
+		.ingredients {
+			position: sticky;
+			top: 1rem;
+			max-height: calc(100vh - 2rem); // a list taller than the screen scrolls on its own
+			overflow-y: auto;
+		}
+	}
+}
+
+// ---- Forms (new / edit) --------------------------------------------------
+
+form:not(.search) {
+	display: grid;
+	gap: 1.25rem;
+	max-width: 40rem;
+
+	label {
+		display: grid;
+		gap: 0.35rem;
+		font-weight: 600;
+	}
+
+	textarea {
+		min-height: 8rem;
+		resize: vertical;
+		field-sizing: content; // grows with its text where supported (Chromium); ignored elsewhere
+	}
+
+	// Loose buttons (e.g. "Verwijder") should not stretch across the grid.
+	> .link-button {
+		justify-self: start;
+	}
+}
+
+.hint {
+	margin: -0.5rem 0 0;
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+.form-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+}
+
+.delete-form {
+	margin-top: 2.5rem;
+}
+
+// ---- TRMNL e-ink (800x480, 1-bit) -----------------------------------------
+// Pure black on white whatever the colour scheme; covers the viewport and clips
+// overflow so a long recipe is cut off instead of rendering off-screen.
+
+.trmnl {
+	--bg: #fff;
+	--surface: #fff;
+	--text: #000;
+	--muted: #000;
+	--border: #000;
+	--accent: #000;
+	--accent-soft: #fff;
+	color-scheme: light;
+
+	position: fixed;
+	inset: 0;
+	overflow: hidden;
+	padding: 16px 20px;
+	background: #fff;
+	color: #000;
+	font-size: 18px;
+	line-height: 1.35;
+
+	.recipe {
+		display: grid;
+		grid-template-columns: 1fr 1.7fr;
+		column-gap: 24px;
+		align-items: start;
+
+		> h1 {
+			grid-column: 1 / -1;
+			margin-bottom: 12px;
+			padding-bottom: 6px;
+			border-bottom: 2px solid #000;
+			font-size: 28px;
+		}
+
+		h2 {
+			margin-bottom: 4px;
+			font-size: 14px;
+		}
+
+		> section {
+			margin: 0;
+		}
+
+		.ingredients {
+			position: static;
+			max-height: none;
+			padding: 0;
+			border: 0;
+		}
+
+		.markdown ul,
+		.markdown ol {
+			padding-left: 1.1em;
+		}
+
+		.markdown li + li {
+			margin-top: 2px;
+		}
+	}
+}
+
+// ---- Print -----------------------------------------------------------------
+
+@media print {
+	:root {
+		--bg: #fff;
+		--surface: #fff;
+		--text: #000;
+		--muted: #000;
+		--border: #999;
+		--accent: #000;
+		--accent-soft: #fff;
+	}
+
+	.nom-navbar,
+	.recipe > .edit {
+		display: none;
+	}
+
+	main {
+		padding: 0;
+	}
+
+	.recipe .ingredients {
+		position: static;
+		max-height: none;
 	}
 }

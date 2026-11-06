@@ -35,6 +35,13 @@ async fn main() {
     let addr = conf.leptos_options.site_addr;
     let leptos_options = conf.leptos_options;
 
+    if leptos_options.env == Env::PROD
+        && let Err(message) = inline_css(&leptos_options)
+    {
+        eprintln!("nom: {message}");
+        std::process::exit(1);
+    }
+
     // Generate the list of routes in your Leptos App
     let routes = generate_route_list(App);
 

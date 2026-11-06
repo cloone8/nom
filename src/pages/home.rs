@@ -15,7 +15,7 @@ pub fn HomePage() -> impl IntoView {
     view! {
         <h1>"Het NomNomNom Receptenboek"</h1>
         // `replace`, so typing doesn't add a history entry per keystroke
-        <Form method="GET" action="" replace=true noscroll=true>
+        <Form method="GET" action="" replace=true noscroll=true attr:class="search">
             // `oninput` is plain JS: it submits on every keystroke, which the hydrated `Form` turns
             // into a client-side navigation. Without JS, Enter submits.
             <input
@@ -44,7 +44,7 @@ pub fn HomePage() -> impl IntoView {
                         }
                             .into_any(),
                         Ok(recipes) => view! {
-                            <ul>
+                            <ul class="recipe-list">
                                 {recipes
                                     .into_iter()
                                     .map(|recipe| view! {

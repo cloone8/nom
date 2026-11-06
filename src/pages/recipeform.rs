@@ -32,25 +32,34 @@ pub fn RecipeForm(recipe: Option<RecipeSource>, submit_label: &'static str) -> i
     view! {
         <ActionForm action=save>
             {id.map(|id| view! { <input type="hidden" name="id" value=id/> })}
-            <h3>"Titel"</h3>
-            <input type="text" name="title" placeholder="Titel" required value=title/>
-            <br/>
-            <h3>"Ingrediënten"</h3>
-            <textarea name="ingredients" placeholder="- 500 g bloem" rows=ingredient_rows>
-                {ingredients}
-            </textarea>
-            <br/>
-            <h3>"Instructies"</h3>
-            <textarea name="instructions" placeholder="Instructies">{instructions}</textarea>
-            <br/>
+            <label>
+                "Titel"
+                <input type="text" name="title" required value=title/>
+            </label>
+            <label>
+                "Ingrediënten"
+                <textarea name="ingredients" placeholder="- 500 g bloem" rows=ingredient_rows>
+                    {ingredients}
+                </textarea>
+            </label>
+            <label>
+                "Bereiding"
+                <textarea name="instructions">{instructions}</textarea>
+            </label>
+            <p class="hint">
+                "Opmaak met Markdown: " <code>"- lijstje"</code> ", " <code>"**vet**"</code> ", "
+                <code>"## kopje"</code>
+            </p>
             {error}
-            <A attr:class="link-button" href=cancel_href>"Annuleer"</A>
-            <input
-                class="link-button button-positive"
-                type="submit"
-                value=submit_label
-                disabled=save.pending()
-            />
+            <div class="form-actions">
+                <A attr:class="link-button" href=cancel_href>"Annuleer"</A>
+                <input
+                    class="link-button button-positive"
+                    type="submit"
+                    value=submit_label
+                    disabled=save.pending()
+                />
+            </div>
         </ActionForm>
     }
 }
