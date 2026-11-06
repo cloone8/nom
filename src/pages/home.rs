@@ -1,3 +1,4 @@
+use leptos::html;
 use leptos::prelude::*;
 use leptos_router::components::{A, Form};
 use leptos_router::hooks::use_query_map;
@@ -11,6 +12,19 @@ pub fn HomePage() -> impl IntoView {
     let query = use_query_map();
     let search = move || query.read().get("q").unwrap_or_default();
     let recipes = Resource::new(search, list_recipes);
+
+    // `value` only sets the starting text. Show the URL's search after navigating (to Home,
+    // say), but not while typing: the URL lags behind the keystrokes.
+    let input = NodeRef::<html::Input>::new();
+    Effect::new(move |_| {
+        let search = search();
+
+        if let Some(input) = input.get_untracked()
+            && !input.matches(":focus").unwrap_or(false)
+        {
+            input.set_value(&search);
+        }
+    });
 
     view! {
         <h1>"Het NomNomNom Receptenboek"</h1>
@@ -26,6 +40,7 @@ pub fn HomePage() -> impl IntoView {
                 // The browser's suggestions of earlier searches would cover the results
                 autocomplete="off"
                 value=search
+                node_ref=input
                 oninput="this.form.requestSubmit()"
             />
         </Form>
@@ -48,7 +63,7 @@ pub fn HomePage() -> impl IntoView {
                                 {recipes
                                     .into_iter()
                                     .map(|recipe| view! {
-                                        <li class="recipe-link">
+                                        <li>
                                             <A href=format!("/recipe/{}", recipe.id)>{recipe.title}</A>
                                         </li>
                                     })

@@ -1,17 +1,8 @@
 {
     "rust-analyzer.cargo.buildScripts.useRustcWrapper": false,
     "rust-analyzer.procMacro.ignored": {
-        "leptos_macro": [
-            // optional:
-            // "component",
-            "server"
-        ],
+        "leptos_macro": ["server"]
     },
-    // if code that is cfg-gated for the `ssr` feature is shown as inactive,
-    // you may want to tell rust-analyzer to enable the `ssr` feature by default
-    //
-    // you can also use `rust-analyzer.cargo.allFeatures` to enable all features
-    "rust-analyzer.cargo.features": [
-        "ssr"
-    ]
+    // Show the server code (`ssr`) as active
+    "rust-analyzer.cargo.features": ["ssr"]
 }

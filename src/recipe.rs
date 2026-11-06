@@ -2,6 +2,9 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "ssr")]
+use crate::db;
+
 /// A recipe in the list on the home page.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecipeSummary {
@@ -10,7 +13,7 @@ pub struct RecipeSummary {
 }
 
 /// A recipe as stored, with its text as Markdown. Used for editing.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RecipeSource {
     pub id: i64,
     pub title: String,
@@ -51,8 +54,9 @@ impl From<RecipeSource> for RecipeView {
     }
 }
 
+/// A recipe, with an "Aanpassen" link if `editable`.
 #[component]
-pub fn RecipeComponent(recipe: RecipeView, with_edit: bool) -> impl IntoView {
+pub fn Recipe(recipe: RecipeView, #[prop(optional)] editable: bool) -> impl IntoView {
     // An empty field renders to "", and then its heading would stand alone
     let section = |class: &'static str, heading: &'static str, html: String| {
         (!html.is_empty()).then(|| {
@@ -96,7 +100,7 @@ pub fn RecipeComponent(recipe: RecipeView, with_edit: bool) -> impl IntoView {
             {section("ingredients", "Ingrediënten", recipe.ingredients_html)}
             {section("instructions", "Bereiding", recipe.instructions_html)}
             {gallery}
-            {with_edit.then(|| view! {
+            {editable.then(|| view! {
                 <A attr:class="link-button edit" href=format!("/edit/{}", recipe.id)>"Aanpassen"</A>
             })}
         </article>
@@ -106,38 +110,25 @@ pub fn RecipeComponent(recipe: RecipeView, with_edit: bool) -> impl IntoView {
 /// All recipes, or the ones matching `search`; see [`crate::search`].
 #[server]
 pub async fn list_recipes(search: String) -> Result<Vec<RecipeSummary>, ServerFnError> {
-    use crate::db;
-
     let recipes = db::list_recipes(&db::connection())?;
     Ok(crate::search::search(recipes, &search))
 }
 
 #[server]
 pub async fn get_recipe_view(id: i64) -> Result<Option<RecipeView>, ServerFnError> {
-    use crate::db;
-
     let recipe = db::get_recipe(&db::connection(), id)?;
     Ok(recipe.map(RecipeView::from))
 }
 
 #[server]
 pub async fn get_random_recipe_view() -> Result<Option<RecipeView>, ServerFnError> {
-    use crate::db;
-
     let conn = db::connection();
-    let recipe = match db::random_recipe_id(&conn)? {
-        Some(id) => db::get_recipe(&conn, id)?,
-        None => None,
-    };
-    drop(conn);
-
-    Ok(recipe.map(RecipeView::from))
+    let recipe = db::random_recipe_id(&conn)?.map(|id| db::get_recipe(&conn, id));
+    Ok(recipe.transpose()?.flatten().map(RecipeView::from))
 }
 
 #[server]
 pub async fn get_recipe_source(id: i64) -> Result<Option<RecipeSource>, ServerFnError> {
-    use crate::db;
-
     Ok(db::get_recipe(&db::connection(), id)?)
 }
 
@@ -154,8 +145,6 @@ pub async fn save_recipe(
     instructions: String,
     photos: String,
 ) -> Result<(), ServerFnError> {
-    use crate::db;
-
     let title = title.trim();
     if title.is_empty() {
         return Err(ServerFnError::new("Een recept heeft een titel nodig"));
@@ -169,33 +158,19 @@ pub async fn save_recipe(
         .filter_map(|id| id.trim().parse().ok())
         .collect();
 
-    let conn = db::connection();
+    let mut conn = db::connection();
     // The recipe and its photos change together or not at all
-    let tx = conn.unchecked_transaction()?;
+    let tx = conn.transaction()?;
 
     let id = match id {
         None => db::insert_recipe(&tx, title, &ingredients, &instructions)?,
-        Some(id) => {
-            let recipe = RecipeSource {
-                id,
-                title: title.to_string(),
-                ingredients,
-                instructions,
-                photos: Vec::new(),
-            };
-
-            if !db::update_recipe(&tx, &recipe)? {
-                return Err(ServerFnError::new("Onbekend recept"));
-            }
-
-            id
-        }
+        Some(id) if db::update_recipe(&tx, id, title, &ingredients, &instructions)? => id,
+        Some(_) => return Err(ServerFnError::new("Onbekend recept")),
     };
 
     db::set_recipe_photos(&tx, id, &photos)?;
     tx.commit()?;
     delete_old_drafts(&conn);
-    drop(conn);
 
     leptos_axum::redirect(&format!("/recipe/{id}"));
     Ok(())
@@ -204,12 +179,12 @@ pub async fn save_recipe(
 /// Deletes a recipe and its photos, then goes to the home page.
 #[server]
 pub async fn delete_recipe(id: i64) -> Result<(), ServerFnError> {
-    use crate::db;
-
-    let conn = db::connection();
-    db::delete_recipe(&conn, id)?;
+    let mut conn = db::connection();
+    // The recipe and its photos go together or not at all
+    let tx = conn.transaction()?;
+    db::delete_recipe(&tx, id)?;
+    tx.commit()?;
     delete_old_drafts(&conn);
-    drop(conn);
 
     leptos_axum::redirect("/");
     Ok(())
@@ -228,49 +203,29 @@ fn delete_old_drafts(conn: &rusqlite::Connection) {
 
 /// Handler for `GET /random`: redirects to a random recipe, or to the home page if there are none.
 #[cfg(feature = "ssr")]
-pub async fn random_recipe_redirect()
--> Result<axum::response::Redirect, (axum::http::StatusCode, String)> {
-    use crate::db;
+pub async fn random_recipe_redirect() -> Result<axum::response::Redirect, axum::http::StatusCode> {
     use axum::http::StatusCode;
     use axum::response::Redirect;
 
     match db::random_recipe_id(&db::connection()) {
         Ok(Some(id)) => Ok(Redirect::to(&format!("/recipe/{id}"))),
         Ok(None) => Ok(Redirect::to("/")),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        Err(e) => {
+            leptos::logging::log!("Picking a random recipe failed: {e}");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
 #[cfg(all(test, feature = "ssr"))]
-mod tests {
-    use super::*;
+#[test]
+fn first_photo_is_the_header() {
+    let view = RecipeView::from(RecipeSource {
+        photos: vec![5, 1, 20],
+        ..Default::default()
+    });
+    assert_eq!((view.header_photo, view.gallery), (Some(5), vec![1, 20]));
 
-    #[test]
-    fn first_photo_is_the_header() {
-        let recipe = RecipeSource {
-            id: 1,
-            title: "Soep".to_string(),
-            ingredients: String::new(),
-            instructions: String::new(),
-            photos: vec![5, 1, 20],
-        };
-
-        let view = RecipeView::from(recipe);
-        assert_eq!(view.header_photo, Some(5));
-        assert_eq!(view.gallery, [1, 20]);
-    }
-
-    #[test]
-    fn no_photos() {
-        let recipe = RecipeSource {
-            id: 1,
-            title: "Soep".to_string(),
-            ingredients: String::new(),
-            instructions: String::new(),
-            photos: Vec::new(),
-        };
-
-        let view = RecipeView::from(recipe);
-        assert_eq!((view.header_photo, view.gallery.len()), (None, 0));
-    }
+    let view = RecipeView::from(RecipeSource::default());
+    assert_eq!((view.header_photo, view.gallery), (None, vec![]));
 }

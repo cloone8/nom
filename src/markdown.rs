@@ -82,10 +82,13 @@ fn show_blocked_link<'a>(
         node.insert_before(child);
     }
 
-    if !is_autolink && title.is_empty() {
-        node.insert_before(text(arena, &format!("]({url})")));
-    } else if !is_autolink {
-        node.insert_before(text(arena, &format!("]({url} \"{title}\")")));
+    if !is_autolink {
+        let title = if title.is_empty() {
+            String::new()
+        } else {
+            format!(" \"{title}\"")
+        };
+        node.insert_before(text(arena, &format!("]({url}{title})")));
     }
 
     node.detach();
@@ -97,43 +100,19 @@ mod tests {
 
     /// Every `<` in escaped output starts a real tag, so this finds anything that got through.
     fn assert_only_safe_tags(html: &str) {
-        const ALLOWED: &[&str] = &[
-            "h1",
-            "p",
-            "a",
-            "img",
-            "code",
-            "pre",
-            "strong",
-            "em",
-            "del",
-            "br",
-            "ul",
-            "ol",
-            "li",
-            "blockquote",
-            "table",
-            "thead",
-            "tbody",
-            "tr",
-            "th",
-            "td",
-            "input",
-        ];
+        const ALLOWED: &str = "h1 p a img code pre strong em del br ul ol li blockquote table \
+            thead tbody tr th td input";
 
         for fragment in html.split('<').skip(1) {
-            let tag = fragment
-                .split('>')
-                .next()
-                .expect("split always yields one item");
+            let tag = fragment.split('>').next().unwrap();
             let name = tag
                 .trim_start_matches('/')
                 .split([' ', '/'])
                 .next()
-                .expect("split always yields one item");
+                .unwrap();
 
             assert!(
-                ALLOWED.contains(&name),
+                ALLOWED.split_whitespace().any(|allowed| allowed == name),
                 "unexpected tag <{tag}> in:\n{html}"
             );
             assert!(!tag.contains(" on"), "event handler in <{tag}>");

@@ -1,19 +1,11 @@
 # Builder image. Keep rust-toolchain file in sync with Rust version here
 FROM rust:1.99.1-trixie AS builder
 
-RUN apt-get update && apt-get upgrade -y
-
 RUN rustup target add wasm32-unknown-unknown
 
-# Additional build tools needed for/by cargo-leptos
-RUN apt-get install npm -y
-# RUN apk add --no-cache alpine-sdk perl npm
-
-RUN npm install -g sass
-
+# Downloads dart-sass itself when building
 RUN cargo install --locked cargo-leptos@0.3.11
 
-RUN mkdir -p /app
 WORKDIR /app
 
 # Source files
@@ -30,7 +22,7 @@ ENV LEPTOS_HASH_FILES=true
 RUN cargo leptos build --release --precompress --lib-cargo-args="--locked" --bin-cargo-args="--locked" -vv
 
 # Runner image. Just copies the artifacts
-FROM debian:trixie AS runner
+FROM debian:trixie-slim AS runner
 
 WORKDIR /app
 
@@ -38,13 +30,11 @@ COPY --from=builder /app/target/release/nom /app/
 # The hashed file names; the server reads this from next to its binary
 COPY --from=builder /app/target/release/hash.txt /app/
 COPY --from=builder /app/target/site /app/site
-COPY --from=builder /app/Cargo.toml /app/
 
 # NOTE: DSM doesn't properly take these as defaults if importing this image as a tarball
 ENV LEPTOS_ENV="PROD"
 ENV LEPTOS_SITE_ADDR="0.0.0.0:8080"
 ENV LEPTOS_SITE_ROOT=/app/site
-ENV NOM_DB="nom.db"
 
 EXPOSE 8080
 

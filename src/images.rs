@@ -5,6 +5,9 @@
 use leptos::prelude::*;
 use leptos::server_fn::codec::{MultipartData, MultipartFormData};
 
+#[cfg(feature = "ssr")]
+use crate::db;
+
 /// Larger uploads are refused. Photos are shrunk in the browser first, so this only matters
 /// when that fails and the original is sent.
 #[cfg(feature = "ssr")]
@@ -13,8 +16,6 @@ const MAX_UPLOAD_BYTES: usize = 20 * 1024 * 1024;
 /// Stores the image in the multipart field (the first one) and returns its id.
 #[server(input = MultipartFormData)]
 pub async fn upload_image(data: MultipartData) -> Result<i64, ServerFnError> {
-    use crate::db;
-
     let mut data = data.into_inner().expect("always Some on the server");
     let mut field = data
         .next_field()
@@ -23,8 +24,9 @@ pub async fn upload_image(data: MultipartData) -> Result<i64, ServerFnError> {
 
     let mime = field
         .content_type()
-        .map(|mime| mime.to_string())
-        .filter(|mime| mime.starts_with("image/"))
+        // Without parameters such as `; charset=...`
+        .map(|mime| mime.essence_str().to_string())
+        .filter(|mime| mime.starts_with("image/") && mime.len() > "image/".len())
         .ok_or_else(|| ServerFnError::new("Dat bestand is geen afbeelding"))?;
 
     let mut bytes = Vec::new();
@@ -54,8 +56,6 @@ pub async fn serve_image(
     };
     use axum::response::IntoResponse;
 
-    use crate::db;
-
     match db::get_image(&db::connection(), id) {
         Ok(Some((mime, data))) => (
             [(CONTENT_TYPE, mime)],
@@ -72,12 +72,15 @@ pub async fn serve_image(
         )
             .into_response(),
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => {
+            leptos::logging::log!("Serving image {id} failed: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 
-/// Shrinks `file` and uploads it as a draft. Returns its id, or a message to show.
-#[cfg(feature = "hydrate")]
+/// Shrinks `file` and uploads it as a draft. Returns its id, or a message to show. Browser
+/// only.
 pub async fn upload(file: web_sys::File) -> Result<i64, String> {
     use wasm_bindgen::JsCast;
 
@@ -92,10 +95,7 @@ pub async fn upload(file: web_sys::File) -> Result<i64, String> {
 
     upload_image(form.into())
         .await
-        .map_err(|error| match error {
-            ServerFnError::ServerError(message) => message,
-            other => other.to_string(),
-        })
+        .map_err(crate::pages::error_message)
 }
 
 /// Removes `![](/images/<id>)` from the text, including the line it had to itself (as the
@@ -116,11 +116,9 @@ pub fn remove_from_text(textarea: &web_sys::HtmlTextAreaElement, id: i64) {
 }
 
 /// Longest side of an uploaded photo, in pixels.
-#[cfg(feature = "hydrate")]
 const MAX_SIDE: f64 = 1600.0;
 
 /// Scales the photo down to at most [`MAX_SIDE`] and re-encodes it as JPEG.
-#[cfg(feature = "hydrate")]
 async fn shrink(file: &web_sys::File) -> Result<web_sys::Blob, wasm_bindgen::JsValue> {
     use wasm_bindgen::JsCast;
     use wasm_bindgen_futures::JsFuture;
@@ -132,7 +130,7 @@ async fn shrink(file: &web_sys::File) -> Result<web_sys::Blob, wasm_bindgen::JsV
         .await?
         .unchecked_into();
 
-    let (width, height) = (bitmap.width() as f64, bitmap.height() as f64);
+    let (width, height) = (f64::from(bitmap.width()), f64::from(bitmap.height()));
     let scale = (MAX_SIDE / width.max(height)).min(1.0);
     let (width, height) = ((width * scale).round(), (height * scale).round());
 

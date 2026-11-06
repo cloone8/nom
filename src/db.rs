@@ -69,6 +69,18 @@ const MIGRATIONS: &[&str] = &[
     // the user changes it.
     "ALTER TABLE images ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
     UPDATE images SET position = id;",
+    // 6: AUTOINCREMENT, so a deleted recipe's id isn't reused: an edit form still open on it
+    // would save over the new recipe
+    "CREATE TABLE recipes_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        ingredients TEXT NOT NULL,
+        instructions TEXT NOT NULL
+    );
+    INSERT INTO recipes_new (id, title, ingredients, instructions)
+    SELECT id, title, ingredients, instructions FROM recipes;
+    DROP TABLE recipes;
+    ALTER TABLE recipes_new RENAME TO recipes;",
 ];
 
 /// Opens the database at `NOM_DB` (default `nom.db`) and brings its schema up to date.
@@ -81,9 +93,21 @@ pub fn init() -> Result<()> {
 
     let mut conn = Connection::open(path)?;
     migrate(&mut conn)?;
+    enable_auto_vacuum(&conn)?;
 
-    if DB.set(Mutex::new(conn)).is_err() {
-        panic!("db::init called twice");
+    assert!(DB.set(Mutex::new(conn)).is_ok(), "db::init called twice");
+    Ok(())
+}
+
+/// Makes SQLite give the space of deleted data (photos, mostly) back to the file system on
+/// every commit. Switching an existing database over takes a `VACUUM`, so the first start
+/// after this was added takes a moment longer.
+fn enable_auto_vacuum(conn: &Connection) -> Result<()> {
+    // 0 = none, 1 = full, 2 = incremental
+    let mode: u32 = conn.query_row("PRAGMA auto_vacuum", [], |row| row.get(0))?;
+
+    if mode != 1 {
+        conn.execute_batch("PRAGMA auto_vacuum = FULL; VACUUM;")?;
     }
 
     Ok(())
@@ -116,7 +140,7 @@ fn migrate(conn: &mut Connection) -> Result<()> {
 
 /// Every recipe with its ingredients (what search looks at), by title.
 pub fn list_recipes(conn: &Connection) -> Result<Vec<(RecipeSummary, String)>> {
-    conn.prepare_cached("SELECT id, title, ingredients FROM recipes ORDER BY title COLLATE NOCASE")?
+    conn.prepare("SELECT id, title, ingredients FROM recipes ORDER BY title COLLATE NOCASE")?
         .query_map([], |row| {
             let summary = RecipeSummary {
                 id: row.get(0)?,
@@ -129,32 +153,22 @@ pub fn list_recipes(conn: &Connection) -> Result<Vec<(RecipeSummary, String)>> {
 }
 
 pub fn get_recipe(conn: &Connection, id: i64) -> Result<Option<RecipeSource>> {
-    let recipe = conn
-        .prepare_cached("SELECT title, ingredients, instructions FROM recipes WHERE id = ?1")?
-        .query_row([id], |row| {
-            Ok(RecipeSource {
-                id,
-                title: row.get(0)?,
-                ingredients: row.get(1)?,
-                instructions: row.get(2)?,
-                photos: Vec::new(),
-            })
+    let sql = "SELECT title, ingredients, instructions FROM recipes WHERE id = ?1";
+    conn.query_row(sql, [id], |row| {
+        Ok(RecipeSource {
+            id,
+            title: row.get(0)?,
+            ingredients: row.get(1)?,
+            instructions: row.get(2)?,
+            photos: recipe_photos(conn, id)?,
         })
-        .optional()?;
-
-    recipe
-        .map(|recipe| {
-            Ok(RecipeSource {
-                photos: recipe_photos(conn, id)?,
-                ..recipe
-            })
-        })
-        .transpose()
+    })
+    .optional()
 }
 
 /// The recipe's photos in order; the first is the header photo.
 fn recipe_photos(conn: &Connection, recipe: i64) -> Result<Vec<i64>> {
-    conn.prepare_cached("SELECT id FROM images WHERE recipe = ?1 ORDER BY position, id")?
+    conn.prepare("SELECT id FROM images WHERE recipe = ?1 ORDER BY position, id")?
         .query_map([recipe], |row| row.get(0))?
         .collect()
 }
@@ -164,17 +178,21 @@ fn recipe_photos(conn: &Connection, recipe: i64) -> Result<Vec<i64>> {
 pub fn set_recipe_photos(conn: &Connection, recipe: i64, photos: &[i64]) -> Result<()> {
     for old in recipe_photos(conn, recipe)? {
         if !photos.contains(&old) {
-            conn.prepare_cached("DELETE FROM images WHERE id = ?1")?
-                .execute([old])?;
+            conn.execute("DELETE FROM images WHERE id = ?1", [old])?;
         }
     }
 
     for (position, &photo) in photos.iter().enumerate() {
-        conn.prepare_cached(
+        // A repeated id keeps its first position
+        if photos[..position].contains(&photo) {
+            continue;
+        }
+
+        conn.execute(
             "UPDATE images SET recipe = ?1, position = ?2
             WHERE id = ?3 AND (recipe IS NULL OR recipe = ?1)",
-        )?
-        .execute([recipe, position as i64, photo])?;
+            (recipe, position as i64, photo),
+        )?;
     }
 
     Ok(())
@@ -187,58 +205,51 @@ pub fn insert_recipe(
     ingredients: &str,
     instructions: &str,
 ) -> Result<i64> {
-    conn.prepare_cached(
-        "INSERT INTO recipes (title, ingredients, instructions) VALUES (?1, ?2, ?3) RETURNING id",
-    )?
-    .query_row((title, ingredients, instructions), |row| row.get(0))
+    let sql =
+        "INSERT INTO recipes (title, ingredients, instructions) VALUES (?1, ?2, ?3) RETURNING id";
+    conn.query_row(sql, (title, ingredients, instructions), |row| row.get(0))
 }
 
 /// Returns `false` if there's no recipe with this id.
-pub fn update_recipe(conn: &Connection, recipe: &RecipeSource) -> Result<bool> {
-    let updated = conn
-        .prepare_cached(
-            "UPDATE recipes SET title = ?1, ingredients = ?2, instructions = ?3 WHERE id = ?4",
-        )?
-        .execute((
-            &recipe.title,
-            &recipe.ingredients,
-            &recipe.instructions,
-            recipe.id,
-        ))?;
-
-    Ok(updated == 1)
+pub fn update_recipe(
+    conn: &Connection,
+    id: i64,
+    title: &str,
+    ingredients: &str,
+    instructions: &str,
+) -> Result<bool> {
+    let sql = "UPDATE recipes SET title = ?2, ingredients = ?3, instructions = ?4 WHERE id = ?1";
+    Ok(conn.execute(sql, (id, title, ingredients, instructions))? == 1)
 }
 
 /// Deletes the recipe and its photos.
 pub fn delete_recipe(conn: &Connection, id: i64) -> Result<()> {
-    conn.prepare_cached("DELETE FROM images WHERE recipe = ?1")?
-        .execute([id])?;
-    conn.prepare_cached("DELETE FROM recipes WHERE id = ?1")?
-        .execute([id])?;
+    conn.execute("DELETE FROM images WHERE recipe = ?1", [id])?;
+    conn.execute("DELETE FROM recipes WHERE id = ?1", [id])?;
 
     Ok(())
 }
 
 /// Stores a draft image (no recipe yet; see [`set_recipe_photos`]) and returns its id.
 pub fn insert_image(conn: &Connection, mime: &str, data: &[u8]) -> Result<i64> {
-    conn.prepare_cached("INSERT INTO images (mime, data) VALUES (?1, ?2) RETURNING id")?
-        .query_row((mime, data), |row| row.get(0))
+    let sql = "INSERT INTO images (mime, data) VALUES (?1, ?2) RETURNING id";
+    conn.query_row(sql, (mime, data), |row| row.get(0))
 }
 
 /// The image's MIME type and bytes.
 pub fn get_image(conn: &Connection, id: i64) -> Result<Option<(String, Vec<u8>)>> {
-    conn.prepare_cached("SELECT mime, data FROM images WHERE id = ?1")?
-        .query_row([id], |row| Ok((row.get(0)?, row.get(1)?)))
+    let sql = "SELECT mime, data FROM images WHERE id = ?1";
+    conn.query_row(sql, [id], |row| Ok((row.get(0)?, row.get(1)?)))
         .optional()
 }
 
-/// Deletes drafts older than a day: uploaded while editing, but never saved with a recipe.
+/// Deletes drafts older than a week: uploaded while editing, but never saved with a recipe.
 /// Returns how many were deleted.
 pub fn delete_old_drafts(conn: &Connection) -> Result<usize> {
-    conn.prepare_cached(
-        "DELETE FROM images WHERE recipe IS NULL AND created < unixepoch() - 24 * 60 * 60",
-    )?
-    .execute([])
+    conn.execute(
+        "DELETE FROM images WHERE recipe IS NULL AND created < unixepoch() - 7 * 24 * 60 * 60",
+        [],
+    )
 }
 
 pub fn random_recipe_id(conn: &Connection) -> Result<Option<i64>> {
@@ -299,8 +310,7 @@ mod tests {
 
     #[test]
     fn creates_a_fresh_database() {
-        let mut conn = Connection::open_in_memory().unwrap();
-        migrate(&mut conn).unwrap();
+        let conn = fresh();
 
         let id = insert_recipe(&conn, "Pannenkoeken", "- bloem", "Bakken.").unwrap();
         let (summary, ingredients) = &list_recipes(&conn).unwrap()[0];
@@ -312,6 +322,36 @@ mod tests {
 
         delete_recipe(&conn, id).unwrap();
         assert_eq!(random_recipe_id(&conn).unwrap(), None);
+
+        // The deleted id isn't given out again
+        assert_eq!(insert_recipe(&conn, "Wafels", "", "").unwrap(), id + 1);
+    }
+
+    #[test]
+    fn deleting_shrinks_the_file() {
+        let path = std::env::temp_dir().join(format!("nom_vacuum_{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let size = || std::fs::metadata(&path).unwrap().len();
+
+        // A database from before auto-vacuum, with a 1 MB photo
+        let mut conn = Connection::open(&path).unwrap();
+        migrate(&mut conn).unwrap();
+        let photo = insert_image(&conn, "image/jpeg", &vec![0; 1 << 20]).unwrap();
+
+        enable_auto_vacuum(&conn).unwrap();
+        let with_photo = size();
+        conn.execute("DELETE FROM images WHERE id = ?1", [photo])
+            .unwrap();
+
+        assert!(size() < with_photo / 10, "{} -> {}", with_photo, size());
+        drop(conn);
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    fn fresh() -> Connection {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrate(&mut conn).unwrap();
+        conn
     }
 
     fn all_images(conn: &Connection) -> Vec<(i64, Option<i64>)> {
@@ -363,8 +403,7 @@ mod tests {
 
     #[test]
     fn photos_belong_to_a_recipe() {
-        let mut conn = Connection::open_in_memory().unwrap();
-        migrate(&mut conn).unwrap();
+        let conn = fresh();
 
         let soup = insert_recipe(&conn, "Soep", "", "").unwrap();
         let cake = insert_recipe(&conn, "Taart", "", "").unwrap();
@@ -379,8 +418,8 @@ mod tests {
         set_recipe_photos(&conn, soup, &[a, c, d]).unwrap();
         assert_eq!(get_recipe(&conn, soup).unwrap().unwrap().photos, [a, d]);
 
-        // The order is kept: d becomes the header photo
-        set_recipe_photos(&conn, soup, &[d, a]).unwrap();
+        // The order is kept: d becomes the header photo. A repeat changes nothing.
+        set_recipe_photos(&conn, soup, &[d, a, d]).unwrap();
         assert_eq!(get_recipe(&conn, soup).unwrap().unwrap().photos, [d, a]);
         assert_eq!(get_recipe(&conn, cake).unwrap().unwrap().photos, [c]);
         assert!(get_image(&conn, b).unwrap().is_none());
@@ -395,8 +434,7 @@ mod tests {
 
     #[test]
     fn deletes_old_drafts_only() {
-        let mut conn = Connection::open_in_memory().unwrap();
-        migrate(&mut conn).unwrap();
+        let conn = fresh();
 
         let soup = insert_recipe(&conn, "Soep", "", "").unwrap();
         let photo = || insert_image(&conn, "image/jpeg", b"jpeg").unwrap();
@@ -407,7 +445,7 @@ mod tests {
         assert_eq!(delete_old_drafts(&conn).unwrap(), 0);
 
         conn.execute(
-            "UPDATE images SET created = created - 2 * 24 * 60 * 60 WHERE id <> ?1",
+            "UPDATE images SET created = created - 8 * 24 * 60 * 60 WHERE id <> ?1",
             [new_draft],
         )
         .unwrap();

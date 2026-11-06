@@ -12,23 +12,25 @@ crate-type = ["cdylib", "rlib"]
 rusqlite = { version = "0.41", optional = true, features = ["bundled"] }
 # multipart: photo uploads
 leptos = { version = "0.8", features = ["multipart"] }
-leptos_router = { version = "0.8" }
+leptos_router = "0.8"
 axum = { version = "0.8", optional = true }
-axum-extra = { version = "0.12", optional = true, features = ["typed-header"] }
+# Basic auth: encodes the expected credentials
+base64 = { version = "0.23", optional = true }
+# Gzip only: brotli's default level is slow for every page
 tower-http = { version = "0.7", optional = true, features = [
-    "compression-full",
+    "catch-panic",
+    "compression-gzip",
     "set-header",
 ] }
 console_error_panic_hook = { version = "0.1", optional = true }
 leptos_axum = { version = "0.8", optional = true }
-leptos_meta = { version = "0.8" }
 tokio = { version = "1", features = [
     "rt-multi-thread",
     "macros",
 ], optional = true }
-wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen = "0.2"
 # Awaits the browser's image APIs when shrinking a photo
-wasm-bindgen-futures = { version = "0.4", optional = true }
+wasm-bindgen-futures = "0.4"
 serde = { version = "1", features = ["derive"] }
 # Default features pull in a CLI and syntax highlighting, neither of which we use
 comrak = { version = "0.59", optional = true, default-features = false }
@@ -39,11 +41,9 @@ nucleo-matcher = { version = "0.3", optional = true, default-features = false, f
 ] }
 web-sys = { version = "0.3", features = [
     "Window",
-    # Theme button: remembers the choice and sets <html data-theme>
-    "Document",
+    # Search box: `matches(":focus")`
     "Element",
-    "Storage",
-    # Photo upload: shrinking, uploading and inserting into the text
+    # Photo upload: shrinking and uploading, and removing old images from the text
     "Blob",
     "File",
     "FileList",
@@ -60,12 +60,10 @@ web-sys = { version = "0.3", features = [
 hydrate = [
     "leptos/hydrate",
     "dep:console_error_panic_hook",
-    "dep:wasm-bindgen",
-    "dep:wasm-bindgen-futures",
 ]
 ssr = [
     "dep:axum",
-    "dep:axum-extra",
+    "dep:base64",
     "dep:tower-http",
     "dep:tokio",
     "dep:leptos_axum",
@@ -73,7 +71,6 @@ ssr = [
     "dep:comrak",
     "dep:nucleo-matcher",
     "leptos/ssr",
-    "leptos_meta/ssr",
     "leptos_router/ssr",
 ]
 
@@ -81,67 +78,18 @@ ssr = [
 lto = true
 codegen-units = 1
 
-# Defines a size-optimized profile for the WASM bundle in release mode
+# Size-optimized, for the WASM bundle
 [profile.wasm-release]
 inherits = "release"
 opt-level = 'z'
-lto = true
-codegen-units = 1
 panic = "abort"
 
+# Everything else is cargo-leptos's default
 [package.metadata.leptos]
-# The name used by wasm-bindgen/cargo-leptos for the JS/WASM bundle. Defaults to the crate name
+# The name of the JS/WASM/CSS files
 output-name = "nom_front"
-
-# The site root folder is where cargo-leptos generate all output. WARNING: all content of this folder will be erased on a rebuild. Use it in your server setup.
-site-root = "target/site"
-
-# The site-root relative folder where all compiled output (JS, WASM and CSS) is written
-# Defaults to pkg
-site-pkg-dir = "pkg"
-
-# [Optional] The source CSS file. If it ends with .sass or .scss then it will be compiled by dart-sass into CSS. The CSS is optimized by Lightning CSS before being written to <site-root>/<site-pkg>/app.css
 style-file = "style/main.scss"
-
-# The IP and port (ex: 127.0.0.1:3000) where the server serves the content. Use it in your server setup.
 site-addr = "127.0.0.1:3000"
-
-# The port to use for automatic reload monitoring
-reload-port = 3001
-
-# [Optional] Command to use when running end2end tests. It will run in the end2end dir.
-#   [Windows] for non-WSL use "npx.cmd playwright test"
-#   This binary name can be checked in Powershell with Get-Command npx
-end2end-cmd = "npx playwright test"
-end2end-dir = "end2end"
-
-#  The browserlist query used for optimizing the CSS.
-browserquery = "defaults"
-
-# The environment Leptos will run in, usually either "DEV" or "PROD"
-env = "DEV"
-
-# The features to use when compiling the bin target
-#
-# Optional. Can be over-ridden with the command line parameter --bin-features
 bin-features = ["ssr"]
-
-# If the --no-default-features flag should be used when compiling the bin target
-#
-# Optional. Defaults to false.
-bin-default-features = false
-
-# The features to use when compiling the lib target
-#
-# Optional. Can be over-ridden with the command line parameter --lib-features
 lib-features = ["hydrate"]
-
-# If the --no-default-features flag should be used when compiling the lib target
-#
-# Optional. Defaults to false.
-lib-default-features = false
-
-# The profile to use for the lib target when compiling for release
-#
-# Optional. Defaults to "release".
 lib-profile-release = "wasm-release"

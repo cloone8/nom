@@ -11,9 +11,11 @@ use crate::recipe::{RecipeSource, SaveRecipe};
 #[component]
 pub fn RecipeForm(recipe: Option<RecipeSource>, submit_label: &'static str) -> impl IntoView {
     let save = ServerAction::<SaveRecipe>::new();
-    let error = move || match save.value().get() {
-        Some(Err(error)) => Some(view! { <ErrorMessage error/> }),
-        _ => None,
+    let error = move || {
+        save.value()
+            .get()
+            .and_then(Result::err)
+            .map(|error| view! { <ErrorMessage error/> })
     };
 
     let id = recipe.as_ref().map(|r| r.id);
@@ -24,13 +26,7 @@ pub fn RecipeForm(recipe: Option<RecipeSource>, submit_label: &'static str) -> i
         instructions,
         photos,
         ..
-    } = recipe.unwrap_or(RecipeSource {
-        id: 0,
-        title: String::new(),
-        ingredients: String::new(),
-        instructions: String::new(),
-        photos: Vec::new(),
-    });
+    } = recipe.unwrap_or_default();
     let ingredient_rows = ingredients.lines().count() + 2;
 
     // The recipe's photos as they'll be saved; see `save_recipe`
@@ -44,6 +40,9 @@ pub fn RecipeForm(recipe: Option<RecipeSource>, submit_label: &'static str) -> i
             .join(",")
     };
 
+    // Photos still uploading; saving now would leave them out
+    let uploading = RwSignal::new(0_u32);
+
     let ingredients_ref = NodeRef::<html::Textarea>::new();
     let instructions_ref = NodeRef::<html::Textarea>::new();
 
@@ -53,7 +52,16 @@ pub fn RecipeForm(recipe: Option<RecipeSource>, submit_label: &'static str) -> i
             <input type="hidden" name="photos" value=photo_ids/>
             <label>
                 "Titel"
-                <input type="text" name="title" required value=title/>
+                // `pattern`: the server refuses a title of only spaces, and without JS that
+                // reloads the form, losing what was typed
+                <input
+                    type="text"
+                    name="title"
+                    required
+                    pattern=r".*\S.*"
+                    title="Een recept heeft een titel nodig"
+                    value=title
+                />
             </label>
             <label>
                 "Ingrediënten"
@@ -73,7 +81,7 @@ pub fn RecipeForm(recipe: Option<RecipeSource>, submit_label: &'static str) -> i
                 </textarea>
             </label>
             <MarkdownHelp/>
-            <PhotoEditor photos ingredients_ref instructions_ref/>
+            <PhotoEditor photos uploading ingredients_ref instructions_ref/>
             {error}
             <div class="form-actions">
                 <A attr:class="link-button" href=cancel_href>"Annuleer"</A>
@@ -81,7 +89,7 @@ pub fn RecipeForm(recipe: Option<RecipeSource>, submit_label: &'static str) -> i
                     class="link-button button-positive"
                     type="submit"
                     value=submit_label
-                    disabled=save.pending()
+                    disabled=move || { save.pending().get() || uploading.get() != 0 }
                 />
             </div>
         </ActionForm>
@@ -93,10 +101,11 @@ pub fn RecipeForm(recipe: Option<RecipeSource>, submit_label: &'static str) -> i
 #[component]
 fn PhotoEditor(
     photos: RwSignal<Vec<i64>>,
+    uploading: RwSignal<u32>,
     ingredients_ref: NodeRef<html::Textarea>,
     instructions_ref: NodeRef<html::Textarea>,
 ) -> impl IntoView {
-    let status = RwSignal::new(None::<String>);
+    let error = RwSignal::new(None::<String>);
 
     // Effects never run on the server
     let hydrated = RwSignal::new(false);
@@ -108,23 +117,20 @@ fn PhotoEditor(
         // So picking the same file again still counts as a change
         input.set_value("");
 
-        #[cfg(feature = "hydrate")]
         if let Some(file) = file {
-            status.set(Some("Foto uploaden...".to_string()));
+            error.set(None);
+            uploading.update(|n| *n += 1);
 
             leptos::task::spawn_local(async move {
-                match crate::images::upload(file).await {
-                    Ok(id) => {
-                        photos.update(|photos| photos.push(id));
-                        status.set(None);
-                    }
-                    Err(message) => status.set(Some(message)),
+                let result = crate::images::upload(file).await;
+                uploading.update(|n| *n -= 1);
+
+                match result {
+                    Ok(id) => photos.update(|photos| photos.push(id)),
+                    Err(message) => error.set(Some(message)),
                 }
             });
         }
-
-        #[cfg(not(feature = "hydrate"))]
-        let _ = (file, status);
     };
 
     let make_header = move |id: i64| {
@@ -148,7 +154,7 @@ fn PhotoEditor(
     view! {
         <Show when=move || hydrated.get()>
             <div class="photo-editor">
-                <span class="label">"Foto's"</span>
+                <strong>"Foto's"</strong>
                 <div class="thumbnails">
                     <For each=move || photos.get() key=|id| *id let:id>
                         <figure>
@@ -186,7 +192,15 @@ fn PhotoEditor(
                         "📷 Foto toevoegen"
                         <input type="file" accept="image/*" hidden on:change=on_upload/>
                     </label>
-                    {move || status.get().map(|status| view! { <span class="hint">{status}</span> })}
+                    {move || {
+                        let status = if uploading.get() > 0 {
+                            Some("Foto uploaden...".to_string())
+                        } else {
+                            error.get()
+                        };
+
+                        status.map(|status| view! { <span class="hint">{status}</span> })
+                    }}
                 </div>
                 <p class="hint">"De hoofdfoto komt bovenaan het recept, de andere eronder."</p>
             </div>
@@ -201,34 +215,13 @@ fn MarkdownHelp() -> impl IntoView {
         <details class="markdown-help">
             <summary>"Opmaak-hulp"</summary>
             <table>
-                <tr>
-                    <td><code>"- melk"</code></td>
-                    <td>"lijstje"</td>
-                </tr>
-                <tr>
-                    <td><code>"1. Snijd de ui"</code></td>
-                    <td>"genummerde stappen"</td>
-                </tr>
-                <tr>
-                    <td><code>"**heet**"</code></td>
-                    <td><strong>"vet"</strong></td>
-                </tr>
-                <tr>
-                    <td><code>"*optioneel*"</code></td>
-                    <td><em>"schuin"</em></td>
-                </tr>
-                <tr>
-                    <td><code>"## Saus"</code></td>
-                    <td>"kopje"</td>
-                </tr>
-                <tr>
-                    <td><code>"[tekst](https://...)"</code></td>
-                    <td>"link"</td>
-                </tr>
-                <tr>
-                    <td>"lege regel"</td>
-                    <td>"nieuwe alinea"</td>
-                </tr>
+                <tr><td><code>"- melk"</code></td><td>"lijstje"</td></tr>
+                <tr><td><code>"1. Snijd de ui"</code></td><td>"genummerde stappen"</td></tr>
+                <tr><td><code>"**heet**"</code></td><td><strong>"vet"</strong></td></tr>
+                <tr><td><code>"*optioneel*"</code></td><td><em>"schuin"</em></td></tr>
+                <tr><td><code>"## Saus"</code></td><td>"kopje"</td></tr>
+                <tr><td><code>"[tekst](https://...)"</code></td><td>"link"</td></tr>
+                <tr><td>"lege regel"</td><td>"nieuwe alinea"</td></tr>
             </table>
         </details>
     }

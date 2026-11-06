@@ -1,81 +1,45 @@
-// Palette: light by default, dark via prefers-color-scheme ("Auto"), unless the theme button
-// chose one: `<html data-theme="light|dark">`.
-// .trmnl and print force pure black on white further down.
-// Pastel surfaces (cream, mint, peach, lavender) with dark enough text and links: every text
-// colour passes WCAG AA (4.5:1) on the backgrounds it's used on, and field borders reach 3:1.
+// Pastel palette: light or dark as the system says ("Auto"), unless the theme button chose one
+// (`<html data-theme="light|dark">`). .trmnl and print force black on white further down.
+// Every text colour passes WCAG AA (4.5:1) on the backgrounds it's used on; field borders 3:1.
 :root {
 	color-scheme: light dark;
 
-	--bg: #fdf7f2; // cream
-	--surface: #ffffff;
-	--card: #fff1e8; // peach: the ingredients
-	--text: #3b2f36;
-	--muted: #7a6670;
-	--border: #f0e0e4;
-	--field-border: #a08b96;
-	--accent: #2e7558; // links, markers
-	--accent-hover: #245d46;
-	--accent-soft: #ddf3e8; // mint: current page, hover
-	--accent-fill: #bfe8d3; // primary button
-	--accent-fill-hover: #a9dfc5;
-	--on-accent: #1d4a37;
-	--highlight: #ece6fb; // lavender: recipe list hover
-	--danger: #b0284f;
-	--danger-soft: #fde7ed;
-
+	--bg: light-dark(#fdf7f2, #1f1b22); // cream
+	--surface: light-dark(#fff, #29242d);
+	--card: light-dark(#fff1e8, #2f2629); // peach: the ingredients
+	--text: light-dark(#3b2f36, #f3eaf0);
+	--muted: light-dark(#7a6670, #b9a9b5);
+	--border: light-dark(#f0e0e4, #3c3442);
+	--field-border: light-dark(#a08b96, #8a7d88);
+	--accent: light-dark(#2e7558, #9adcbf); // links, markers
+	--accent-hover: light-dark(#245d46, #b3e6cf);
+	--accent-soft: light-dark(#ddf3e8, #24382f); // mint: current page, hover
+	--accent-fill: light-dark(#bfe8d3, #9adcbf); // primary button
+	--accent-fill-hover: light-dark(#a9dfc5, #b3e6cf);
+	--on-accent: light-dark(#1d4a37, #1f1b22);
+	--highlight: light-dark(#ece6fb, #2c2740); // lavender: recipe list hover
+	--danger: light-dark(#b0284f, #ff9fb3);
+	--danger-soft: light-dark(#fde7ed, #43232d);
 	--radius: 0.75rem;
-	--gutter: 1rem;
-	--measure: 65ch; // comfortable line length for running text
-	--page: 52rem; // content width on desktop
 }
 
-@mixin dark {
-	color-scheme: dark;
-
-	--bg: #1f1b22;
-	--surface: #29242d;
-	--card: #2f2629;
-	--text: #f3eaf0;
-	--muted: #b9a9b5;
-	--border: #3c3442;
-	--field-border: #8a7d88;
-	--accent: #9adcbf;
-	--accent-hover: #b3e6cf;
-	--accent-soft: #24382f;
-	--accent-fill: #9adcbf;
-	--accent-fill-hover: #b3e6cf;
-	--on-accent: #1f1b22;
-	--highlight: #2c2740;
-	--danger: #ff9fb3;
-	--danger-soft: #43232d;
-}
-
-:root[data-theme="light"] {
+[data-theme="light"] {
 	color-scheme: light;
 }
 
-:root[data-theme="dark"] {
-	@include dark;
+[data-theme="dark"] {
+	color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
-	:root:not([data-theme="light"]) {
-		@include dark;
-	}
-}
-
-*,
-*::before,
-*::after {
+* {
 	box-sizing: border-box;
 }
 
 html {
 	background: var(--bg);
 	color: var(--text);
-	font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	font-family: system-ui, sans-serif;
 	line-height: 1.6;
-	-webkit-text-size-adjust: 100%;
 	text-size-adjust: 100%;
 }
 
@@ -84,10 +48,10 @@ body {
 	font-size: 1.125rem; // 18px
 }
 
-// Navbar and main are full width; the padding centres their content in a --page column.
+// Navbar and main are full width; the padding centres their content in a 52rem column.
 .nom-navbar,
 main {
-	padding-inline: max(var(--gutter), (100% - var(--page)) / 2);
+	padding-inline: max(1rem, (100% - 52rem) / 2);
 }
 
 main {
@@ -98,8 +62,8 @@ h1,
 h2,
 h3 {
 	margin: 0 0 0.75rem;
-	// Rounded where the system has one (Apple); the normal font elsewhere
-	font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	// Rounded where the system has one (Apple)
+	font-family: ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
 	line-height: 1.2;
 }
 
@@ -144,8 +108,6 @@ code {
 	font-weight: 600;
 }
 
-// ---- Navbar ------------------------------------------------------------
-
 .nom-navbar {
 	display: flex;
 	flex-wrap: wrap;
@@ -154,7 +116,7 @@ code {
 	background: var(--surface);
 	border-bottom: 1px solid var(--border);
 
-	// Nav items are quiet text links, not boxed buttons.
+	// Nav items are quiet text links, not boxed buttons
 	.link-button {
 		background: transparent;
 		border-color: transparent;
@@ -167,41 +129,44 @@ code {
 		}
 	}
 
-	// The theme button sits apart, on the right
 	.theme {
 		margin-left: auto;
 		font-weight: 400;
+
+		// Only the current scheme's label
+		span {
+			display: none;
+		}
 	}
 }
 
-// ---- Buttons -----------------------------------------------------------
-// .link-button = neutral, .button-positive = primary, .button-negative = danger.
+:root:not([data-theme]) .theme .auto,
+[data-theme="light"] .theme .light,
+[data-theme="dark"] .theme .dark {
+	display: inline;
+}
 
+// .link-button = neutral, .button-positive = primary, .button-negative = danger
 .link-button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
+	display: inline-grid;
+	place-items: center;
 	min-height: 2.75rem; // >= 44px touch target
-	margin: 0;
 	padding: 0.5rem 1rem;
-
 	background: var(--surface);
 	border: 1px solid var(--field-border);
-	border-radius: 999px; // pill
-
+	border-radius: 999px;
 	color: var(--text);
 	font: inherit;
 	font-weight: 600;
 	line-height: 1.2;
 	text-decoration: none;
-
 	appearance: none; // no native iOS button chrome on <input type=submit>
 	cursor: pointer;
 	transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 
 	&:hover {
 		background: var(--accent-soft);
-		color: var(--text);
+		color: var(--text); // not a:hover's
 	}
 
 	&:disabled {
@@ -231,8 +196,6 @@ code {
 	}
 }
 
-// ---- Fields -----------------------------------------------------------------
-
 input[type="text"],
 input[type="search"],
 textarea {
@@ -248,26 +211,25 @@ textarea {
 	appearance: none;
 }
 
-// ---- Home: search and recipe list ---------------------------------------
+.search,
+.recipe-list,
+.instructions {
+	max-width: 65ch; // comfortable line length
+}
 
 .search {
-	max-width: var(--measure);
 	margin-bottom: 1rem;
 }
 
 .recipe-list {
-	max-width: var(--measure);
 	padding: 0;
 	background: var(--surface);
 	border: 1px solid var(--border);
 	border-radius: var(--radius);
 	overflow: hidden;
-}
-
-.recipe-link {
 	list-style: none;
 
-	& + & {
+	li + li {
 		border-top: 1px solid var(--border);
 	}
 
@@ -290,8 +252,6 @@ textarea {
 	}
 }
 
-// ---- Rendered Markdown (ingredients and instructions) ---------------------
-
 .markdown {
 	overflow-wrap: break-word;
 	hyphens: auto;
@@ -301,12 +261,7 @@ textarea {
 	}
 
 	// Users' own headings stay below the page's h1 and section h2s
-	h1,
-	h2,
-	h3,
-	h4,
-	h5,
-	h6 {
+	:is(h1, h2, h3, h4, h5, h6) {
 		margin-top: 1.25rem;
 		font-size: 1.05rem;
 	}
@@ -362,7 +317,6 @@ textarea {
 
 	img {
 		max-width: 100%;
-		height: auto;
 		border-radius: var(--radius);
 	}
 
@@ -372,7 +326,34 @@ textarea {
 	}
 }
 
-// ---- Recipe page -------------------------------------------------------
+.header-photo,
+.photos img,
+.thumbnails img {
+	display: block;
+	width: 100%;
+	aspect-ratio: 1;
+	object-fit: cover;
+	border-radius: var(--radius);
+}
+
+.header-photo {
+	max-height: 24rem;
+	aspect-ratio: 16 / 9;
+	margin-bottom: 1.5rem;
+}
+
+.photos img {
+	width: 8rem;
+}
+
+.photos,
+.thumbnails,
+.photo-upload,
+.form-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+}
 
 .recipe {
 	> section {
@@ -391,34 +372,6 @@ textarea {
 		background: var(--card);
 		border-radius: var(--radius);
 	}
-
-	.instructions {
-		max-width: var(--measure);
-	}
-
-	.header-photo {
-		display: block;
-		width: 100%;
-		max-height: 24rem;
-		aspect-ratio: 16 / 9;
-		margin-bottom: 1.5rem;
-		object-fit: cover;
-		border-radius: var(--radius);
-	}
-
-	.gallery .photos {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.75rem;
-
-		img {
-			display: block;
-			width: 8rem;
-			aspect-ratio: 1;
-			object-fit: cover;
-			border-radius: var(--radius);
-		}
-	}
 }
 
 // Wide screens: ingredients left (sticky while scrolling), instructions right.
@@ -429,10 +382,8 @@ textarea {
 		column-gap: 2.5rem;
 		align-items: start;
 
-		> h1,
-		> .header-photo,
-		> .gallery,
-		> .edit {
+		// Without ingredients, the instructions take the whole row too
+		> :not(.ingredients, .ingredients + .instructions) {
 			grid-column: 1 / -1;
 		}
 
@@ -440,21 +391,16 @@ textarea {
 			justify-self: start;
 		}
 
-		// Without ingredients, the instructions take the whole row
-		&:not(:has(> .ingredients)) > .instructions {
-			grid-column: 1 / -1;
-		}
-
 		.ingredients {
-			position: sticky;
-			top: 1rem;
-			max-height: calc(100vh - 2rem); // a list taller than the screen scrolls on its own
-			overflow-y: auto;
+			@media screen {
+				position: sticky;
+				top: 1rem;
+				max-height: calc(100vh - 2rem); // a list taller than the screen scrolls on its own
+				overflow-y: auto;
+			}
 		}
 	}
 }
-
-// ---- Forms (new / edit) --------------------------------------------------
 
 form:not(.search) {
 	display: grid;
@@ -473,27 +419,24 @@ form:not(.search) {
 		resize: vertical;
 		field-sizing: content; // grows with its text where supported (Chromium); ignored elsewhere
 	}
+}
 
-	// Loose buttons (e.g. "Verwijder") should not stretch across the grid.
-	> .link-button {
-		justify-self: start;
-	}
+.hint,
+.markdown-help {
+	color: var(--muted);
+	font-size: 0.9rem;
 }
 
 .hint {
-	margin: -0.5rem 0 0;
-	color: var(--muted);
-	font-size: 0.9rem;
+	margin: 0;
 }
 
 .markdown-help {
 	margin-top: -0.5rem;
-	color: var(--muted);
-	font-size: 0.9rem;
 
 	summary {
-		cursor: pointer;
 		width: fit-content;
+		cursor: pointer;
 	}
 
 	table {
@@ -511,21 +454,9 @@ form:not(.search) {
 .photo-editor {
 	display: grid;
 	gap: 0.75rem;
-
-	.label {
-		font-weight: 600;
-	}
-
-	.hint {
-		margin: 0;
-	}
 }
 
 .thumbnails {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.75rem;
-
 	&:empty {
 		display: none;
 	}
@@ -537,13 +468,6 @@ form:not(.search) {
 		margin: 0;
 	}
 
-	img {
-		width: 100%;
-		aspect-ratio: 1;
-		object-fit: cover;
-		border-radius: var(--radius);
-	}
-
 	.link-button,
 	.header-badge {
 		min-height: 2.25rem;
@@ -553,9 +477,8 @@ form:not(.search) {
 
 	// Takes the place of the "Maak hoofdfoto" button on the first photo
 	.header-badge {
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		display: grid;
+		place-items: center;
 		background: var(--accent-soft);
 		border-radius: 999px;
 		color: var(--accent);
@@ -564,30 +487,19 @@ form:not(.search) {
 }
 
 .photo-upload {
-	display: flex;
-	flex-wrap: wrap;
 	align-items: center;
-	gap: 0.75rem;
-}
-
-.form-actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.75rem;
 }
 
 .delete-form {
 	margin-top: 2.5rem;
+	justify-items: start;
 }
 
-// ---- TRMNL e-ink (800x480, 1-bit) -----------------------------------------
-// Pure black on white whatever the colour scheme; covers the viewport and clips
-// overflow so a long recipe is cut off instead of rendering off-screen.
+// TRMNL e-ink (800x480, 1-bit): pure black on white whatever the colour scheme. Covers the
+// viewport and clips overflow, so a long recipe is cut off instead of rendering off-screen.
 
 .trmnl {
-	--bg: #fff;
-	--surface: #fff;
-	--text: #000;
+	--card: #fff;
 	--muted: #000;
 	--border: #000;
 	--accent: #000;
@@ -605,7 +517,8 @@ form:not(.search) {
 
 	.recipe {
 		display: grid;
-		grid-template-columns: 1fr 1.7fr;
+		// `minmax`, so a long line in the instructions can't squeeze the ingredients
+		grid-template-columns: 1fr minmax(0, 1.7fr);
 		column-gap: 24px;
 		align-items: start;
 
@@ -629,12 +542,12 @@ form:not(.search) {
 		.ingredients {
 			position: static;
 			max-height: none;
+			// Without padding, the scroll box would clip the "I" of the bold heading
+			overflow: visible;
 			padding: 0;
-			border: 0;
 		}
 
-		.markdown ul,
-		.markdown ol {
+		.markdown :is(ul, ol) {
 			padding-left: 1.1em;
 		}
 
@@ -651,12 +564,8 @@ form:not(.search) {
 	}
 }
 
-// ---- Print -----------------------------------------------------------------
-
 @media print {
-	// Two selectors as specific as the dark ones above (and later), so these win in every theme
-	:root[data-theme],
-	:root:not([data-theme]) {
+	:root {
 		color-scheme: light;
 
 		--bg: #fff;
@@ -675,10 +584,5 @@ form:not(.search) {
 
 	main {
 		padding: 0;
-	}
-
-	.recipe .ingredients {
-		position: static;
-		max-height: none;
 	}
 }
