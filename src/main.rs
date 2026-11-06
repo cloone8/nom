@@ -33,11 +33,16 @@ async fn main() {
     log!("Using config: {:#?}", conf.leptos_options);
 
     let addr = conf.leptos_options.site_addr;
-    let leptos_options = conf.leptos_options;
+    let mut leptos_options = conf.leptos_options;
 
-    if leptos_options.env == Env::PROD
-        && let Err(message) = inline_css(&leptos_options)
-    {
+    // The Docker build sets LEPTOS_HASH_FILES=true, so cargo-leptos puts content hashes in the
+    // JS/WASM/CSS file names. Read when compiling, so the server matches its build even where
+    // the variable isn't set at runtime.
+    if option_env!("LEPTOS_HASH_FILES").is_some_and(|v| v.eq_ignore_ascii_case("true")) {
+        leptos_options.hash_files = true;
+    }
+
+    if let Err(message) = load_stylesheet(&leptos_options) {
         eprintln!("nom: {message}");
         std::process::exit(1);
     }
@@ -46,11 +51,30 @@ async fn main() {
     let routes = generate_route_list(App);
 
     // Routes must be added before the layers, or the layers (auth!) don't apply to them
-    let app = Router::new()
-        .route(
-            "/random",
-            axum::routing::get(nom_app::recipe::random_recipe_redirect),
-        )
+    let mut app = Router::new().route(
+        "/random",
+        axum::routing::get(nom_app::recipe::random_recipe_redirect),
+    );
+
+    if leptos_options.hash_files {
+        use axum::http::{HeaderValue, header::CACHE_CONTROL};
+        use tower_http::set_header::SetResponseHeader;
+
+        // A hashed name changes with the content, so browsers may keep these files forever.
+        // `private`: everything is behind auth, so shared caches mustn't keep them.
+        let pkg_files = SetResponseHeader::overriding(
+            leptos_axum::site_pkg_dir_service(&leptos_options),
+            CACHE_CONTROL,
+            HeaderValue::from_static("private, max-age=31536000, immutable"),
+        );
+
+        app = app.route_service(
+            &leptos_axum::site_pkg_dir_service_route_path(&leptos_options),
+            pkg_files,
+        );
+    }
+
+    let app = app
         .leptos_routes(&leptos_options, routes, {
             let leptos_options = leptos_options.clone();
             move || shell(leptos_options.clone())
