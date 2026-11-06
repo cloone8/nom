@@ -4,6 +4,8 @@ version = "0.2.1"
 edition = "2024"
 
 [lib]
+# Differs from the bin name, so their .pdb files don't collide on Windows
+name = "nom_app"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]

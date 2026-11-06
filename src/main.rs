@@ -5,9 +5,9 @@ async fn main() {
     use leptos::logging::log;
     use leptos::prelude::*;
     use leptos_axum::{LeptosRoutes, generate_route_list};
-    use nom::app::*;
-    use nom::auth::middleware::{AuthConfig, auth_middleware};
-    use nom::log::middleware::log_middleware;
+    use nom_app::app::*;
+    use nom_app::auth::middleware::{AuthConfig, auth_middleware};
+    use nom_app::log::middleware::log_middleware;
     use std::sync::Arc;
     use tower_http::compression::CompressionLayer;
 
