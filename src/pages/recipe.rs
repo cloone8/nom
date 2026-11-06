@@ -1,42 +1,30 @@
 use leptos::prelude::*;
-use leptos_router::hooks::use_params;
-use leptos_router::params::Params;
 
-use crate::recipe::{RecipeComponent, get_recipe};
-
-#[derive(Debug, Params, PartialEq)]
-struct RecipeArgs {
-    id: Option<String>,
-}
+use super::{ErrorMessage, use_recipe_id};
+use crate::recipe::{RecipeComponent, get_recipe_view};
 
 #[component]
 pub fn RecipePage() -> impl IntoView {
-    let id = move || {
-        use_params::<RecipeArgs>()
-            .read()
-            .as_ref()
-            .ok()
-            .and_then(|params| params.id.clone())
-            .unwrap()
-    };
-
-    let recipe_resource = Resource::new(id, async |id| {
-        let parsed: i64 = id.parse().unwrap();
-        (parsed, get_recipe(parsed).await.unwrap())
-    });
-
-    let render_recipe = move || {
-        recipe_resource.get().map(|(id, recipe)| match recipe {
-            Some(recipe) => {
-                view! {<RecipeComponent id={id} recipe={recipe} with_mod=true/> }.into_any()
+    let id = use_recipe_id();
+    let recipe = Resource::new(
+        move || id.get(),
+        |id| async move {
+            match id {
+                Some(id) => get_recipe_view(id).await,
+                None => Ok(None),
             }
-            None => view! { <h2>"Onbekend recept"</h2>}.into_any(),
-        })
-    };
+        },
+    );
 
     view! {
-        <Suspense fallback=move || view!{ <p>"Recept aan het laden..."</p>}>
-            {render_recipe}
+        <Suspense fallback=|| view! { <p>"Recept aan het laden..."</p> }>
+            {move || Suspend::new(async move {
+                match recipe.await {
+                    Ok(Some(recipe)) => view! { <RecipeComponent recipe with_edit=true/> }.into_any(),
+                    Ok(None) => view! { <h2>"Onbekend recept"</h2> }.into_any(),
+                    Err(error) => view! { <ErrorMessage error/> }.into_any(),
+                }
+            })}
         </Suspense>
     }
 }

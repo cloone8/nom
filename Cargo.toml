@@ -26,6 +26,8 @@ tokio = { version = "1", features = [
 ], optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 serde = { version = "1", features = ["derive"] }
+# Default features pull in a CLI and syntax highlighting, neither of which we use
+comrak = { version = "0.59", optional = true, default-features = false }
 web-sys = { version = "0.3", features = ["Window"] }
 
 [features]
@@ -37,6 +39,7 @@ ssr = [
     "dep:tokio",
     "dep:leptos_axum",
     "dep:rusqlite",
+    "dep:comrak",
     "leptos/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",

@@ -1,35 +1,38 @@
 use leptos::prelude::*;
+use leptos_router::components::A;
 
-use crate::recipe::{ListedRecipe, list_recipes};
+use super::ErrorMessage;
+use crate::recipe::list_recipes;
 
-/// Renders the home page of your application.
 #[component]
 pub fn HomePage() -> impl IntoView {
-    async fn fetch() -> Vec<ListedRecipe> {
-        list_recipes().await.unwrap()
-    }
+    let recipes = OnceResource::new(list_recipes());
 
     view! {
         <h1>"Het NomNomNom Receptenboek"</h1>
-        <Await
-            future=fetch()
-            let:recipes
-        >
-            <ul>
-                {
-                    let mut recipes = recipes.clone();
-
-                    recipes.sort_by_cached_key(|rp| rp.title.clone());
-
-                    recipes.iter().map(|rp|{
-                        let url = format!("/recipe/{}", rp.id);
-
-                        view! {
-                            <li class="recipe-link"><a href={url}>{rp.title.clone()}</a></li>
-                        }
-                    }).collect_view()
+        <Suspense fallback=|| view! { <p>"Recepten aan het laden..."</p> }>
+            {move || Suspend::new(async move {
+                match recipes.await {
+                    Ok(recipes) if recipes.is_empty() => view! {
+                        <p>"Er zijn nog geen recepten. " <A href="/new">"Voeg er eentje toe!"</A></p>
+                    }
+                        .into_any(),
+                    Ok(recipes) => view! {
+                        <ul>
+                            {recipes
+                                .into_iter()
+                                .map(|recipe| view! {
+                                    <li class="recipe-link">
+                                        <A href=format!("/recipe/{}", recipe.id)>{recipe.title}</A>
+                                    </li>
+                                })
+                                .collect_view()}
+                        </ul>
+                    }
+                        .into_any(),
+                    Err(error) => view! { <ErrorMessage error/> }.into_any(),
                 }
-            </ul>
-        </Await>
+            })}
+        </Suspense>
     }
 }

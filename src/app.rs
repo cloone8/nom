@@ -1,17 +1,14 @@
 use leptos::prelude::*;
-use leptos::reactive::spawn_local;
 use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::components::{A, Route, Router, Routes};
 use leptos_router::hooks::use_url;
-use leptos_router::{NavigateOptions, path};
-use web_sys::MouseEvent;
+use leptos_router::path;
 
 use crate::pages::editrecipe::EditRecipePage;
 use crate::pages::home::HomePage;
 use crate::pages::newrecipe::NewRecipePage;
 use crate::pages::recipe::RecipePage;
 use crate::pages::trmnl::TrmnlPage;
-use crate::recipe::random_recipe;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -65,28 +62,6 @@ fn NavBar() -> impl IntoView {
     let url = use_url();
     let url_is_trmnl = move || url.get().path() == "/trmnl";
 
-    let random_recipe = |ev: MouseEvent| {
-        ev.prevent_default();
-
-        spawn_local(async {
-            let random_recipe_id = random_recipe().await.unwrap();
-
-            match random_recipe_id {
-                Some(id) => {
-                    let navigate = leptos_router::hooks::use_navigate();
-
-                    navigate(format!("/recipe/{id}").as_str(), NavigateOptions::default());
-                }
-                None => {
-                    web_sys::window()
-                        .unwrap()
-                        .alert_with_message("Er zijn nog geen recepted. Voeg er eentje toe!")
-                        .unwrap();
-                }
-            }
-        });
-    };
-
     view! {
         {
             move || if url_is_trmnl() {
@@ -96,7 +71,8 @@ fn NavBar() -> impl IntoView {
                     <nav class="nom-navbar">
                         <A class:link-button href="/">"Home"</A>
                         <A class:link-button href="/new">"Nieuw recept"</A>
-                        <button class:link-button on:click=random_recipe>"Random"</button>
+                        // A server route, not a page: `rel="external"` makes the router leave it to the browser
+                        <a class="link-button" href="/random" rel="external">"Random"</a>
                     </nav>
                 }.into_any()
             }

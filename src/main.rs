@@ -23,6 +23,11 @@ async fn main() {
         log!("Authentication is disabled (NOM_NO_AUTH)");
     }
 
+    if let Err(error) = nom_app::db::init() {
+        eprintln!("nom: can't open the database: {error}");
+        std::process::exit(1);
+    }
+
     let conf = get_configuration(Some("./Cargo.toml")).unwrap();
 
     log!("Using config: {:#?}", conf.leptos_options);
@@ -33,7 +38,12 @@ async fn main() {
     // Generate the list of routes in your Leptos App
     let routes = generate_route_list(App);
 
+    // Routes must be added before the layers, or the layers (auth!) don't apply to them
     let app = Router::new()
+        .route(
+            "/random",
+            axum::routing::get(nom_app::recipe::random_recipe_redirect),
+        )
         .leptos_routes(&leptos_options, routes, {
             let leptos_options = leptos_options.clone();
             move || shell(leptos_options.clone())
