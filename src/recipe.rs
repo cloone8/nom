@@ -55,11 +55,13 @@ pub fn RecipeComponent(recipe: RecipeView, with_edit: bool) -> impl IntoView {
     }
 }
 
+/// All recipes, or the ones matching `search`; see [`crate::search`].
 #[server]
-pub async fn list_recipes() -> Result<Vec<RecipeSummary>, ServerFnError> {
+pub async fn list_recipes(search: String) -> Result<Vec<RecipeSummary>, ServerFnError> {
     use crate::db;
 
-    Ok(db::list_recipes(&db::connection())?)
+    let recipes = db::list_recipes(&db::connection())?;
+    Ok(crate::search::search(recipes, &search))
 }
 
 #[server]

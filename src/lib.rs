@@ -7,6 +7,8 @@ pub mod log;
 pub mod markdown;
 pub mod pages;
 pub mod recipe;
+#[cfg(feature = "ssr")]
+pub mod search;
 
 #[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]

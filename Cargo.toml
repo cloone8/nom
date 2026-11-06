@@ -28,6 +28,11 @@ wasm-bindgen = { version = "0.2", optional = true }
 serde = { version = "1", features = ["derive"] }
 # Default features pull in a CLI and syntax highlighting, neither of which we use
 comrak = { version = "0.59", optional = true, default-features = false }
+# Only the case and accent folding; the default also adds grapheme segmentation
+nucleo-matcher = { version = "0.3", optional = true, default-features = false, features = [
+    "unicode-casefold",
+    "unicode-normalization",
+] }
 web-sys = { version = "0.3", features = ["Window"] }
 
 [features]
@@ -40,6 +45,7 @@ ssr = [
     "dep:leptos_axum",
     "dep:rusqlite",
     "dep:comrak",
+    "dep:nucleo-matcher",
     "leptos/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",

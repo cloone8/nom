@@ -91,13 +91,16 @@ fn migrate(conn: &mut Connection) -> Result<()> {
     tx.commit()
 }
 
-pub fn list_recipes(conn: &Connection) -> Result<Vec<RecipeSummary>> {
-    conn.prepare_cached("SELECT id, title FROM recipes ORDER BY title COLLATE NOCASE")?
+/// Every recipe with its ingredients (what search looks at), by title.
+pub fn list_recipes(conn: &Connection) -> Result<Vec<(RecipeSummary, String)>> {
+    conn.prepare_cached("SELECT id, title, ingredients FROM recipes ORDER BY title COLLATE NOCASE")?
         .query_map([], |row| {
-            Ok(RecipeSummary {
+            let summary = RecipeSummary {
                 id: row.get(0)?,
                 title: row.get(1)?,
-            })
+            };
+
+            Ok((summary, row.get(2)?))
         })?
         .collect()
 }
@@ -213,7 +216,11 @@ mod tests {
         migrate(&mut conn).unwrap();
 
         let id = insert_recipe(&conn, "Pannenkoeken", "- bloem", "Bakken.").unwrap();
-        assert_eq!(list_recipes(&conn).unwrap()[0].title, "Pannenkoeken");
+        let (summary, ingredients) = &list_recipes(&conn).unwrap()[0];
+        assert_eq!(
+            (summary.title.as_str(), ingredients.as_str()),
+            ("Pannenkoeken", "- bloem")
+        );
         assert_eq!(random_recipe_id(&conn).unwrap(), Some(id));
 
         delete_recipe(&conn, id).unwrap();
