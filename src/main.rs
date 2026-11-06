@@ -6,9 +6,22 @@ async fn main() {
     use leptos::prelude::*;
     use leptos_axum::{LeptosRoutes, generate_route_list};
     use nom::app::*;
-    use nom::auth::middleware::auth_middleware;
+    use nom::auth::middleware::{AuthConfig, auth_middleware};
     use nom::log::middleware::log_middleware;
+    use std::sync::Arc;
     use tower_http::compression::CompressionLayer;
+
+    let auth_config = match AuthConfig::from_env() {
+        Ok(config) => Arc::new(config),
+        Err(message) => {
+            eprintln!("nom: {message}");
+            std::process::exit(1);
+        }
+    };
+
+    if let AuthConfig::Disabled = *auth_config {
+        log!("Authentication is disabled (NOM_NO_AUTH)");
+    }
 
     let conf = get_configuration(Some("./Cargo.toml")).unwrap();
 
@@ -27,7 +40,10 @@ async fn main() {
         })
         .fallback(leptos_axum::file_and_error_handler(shell))
         .layer(CompressionLayer::new())
-        .layer(axum::middleware::from_fn(auth_middleware))
+        .layer(axum::middleware::from_fn_with_state(
+            auth_config,
+            auth_middleware,
+        ))
         .layer(axum::middleware::from_fn(log_middleware))
         .with_state(leptos_options);
 

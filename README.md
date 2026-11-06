@@ -1,6 +1,16 @@
 # nom
 Recipe website
 
+## Configuration
+
+| Variable | Meaning |
+|---|---|
+| `NOM_USERNAME`, `NOM_PASSWORD` | HTTP Basic auth credentials. Required, unless `NOM_NO_AUTH` is set. |
+| `NOM_NO_AUTH` | `1` or `true` (any case) runs the site without authentication. Any other value is an error, and so is combining it with `NOM_USERNAME` or `NOM_PASSWORD`. |
+| `NOM_DB` | Path to the SQLite database. Defaults to `nom.db`. |
+
+An empty variable counts as unset. On a configuration error the server prints the problem and exits with code 1.
+
 <picture>
     <source srcset="https://raw.githubusercontent.com/leptos-rs/leptos/main/docs/logos/Leptos_logo_Solid_White.svg" media="(prefers-color-scheme: dark)">
     <img src="https://raw.githubusercontent.com/leptos-rs/leptos/main/docs/logos/Leptos_logo_RGB.svg" alt="Leptos Logo">
