@@ -7,7 +7,7 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-rusqlite = { version = "0.40", optional = true, features = ["bundled"] }
+rusqlite = { version = "0.41", optional = true, features = ["bundled"] }
 leptos = { version = "0.8" }
 leptos_router = { version = "0.8" }
 axum = { version = "0.8", optional = true }
@@ -22,7 +22,7 @@ tokio = { version = "1", features = [
     "rt-multi-thread",
     "macros",
 ], optional = true }
-wasm-bindgen = { version = "0.2.121", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
 serde = { version = "1", features = ["derive"] }
 web-sys = { version = "0.3", features = ["Window"] }
 
