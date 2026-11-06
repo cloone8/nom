@@ -10,7 +10,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 rusqlite = { version = "0.41", optional = true, features = ["bundled"] }
-leptos = { version = "0.8" }
+# multipart: photo uploads
+leptos = { version = "0.8", features = ["multipart"] }
 leptos_router = { version = "0.8" }
 axum = { version = "0.8", optional = true }
 axum-extra = { version = "0.12", optional = true, features = ["typed-header"] }
@@ -26,6 +27,8 @@ tokio = { version = "1", features = [
     "macros",
 ], optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
+# Awaits the browser's image APIs when shrinking a photo
+wasm-bindgen-futures = { version = "0.4", optional = true }
 serde = { version = "1", features = ["derive"] }
 # Default features pull in a CLI and syntax highlighting, neither of which we use
 comrak = { version = "0.59", optional = true, default-features = false }
@@ -34,10 +37,28 @@ nucleo-matcher = { version = "0.3", optional = true, default-features = false, f
     "unicode-casefold",
     "unicode-normalization",
 ] }
-web-sys = { version = "0.3", features = ["Window"] }
+web-sys = { version = "0.3", features = [
+    "Window",
+    # Photo upload: shrinking, uploading and inserting into the text
+    "Blob",
+    "File",
+    "FileList",
+    "FormData",
+    "HtmlInputElement",
+    "HtmlTextAreaElement",
+    "ImageBitmap",
+    "ImageEncodeOptions",
+    "OffscreenCanvas",
+    "OffscreenCanvasRenderingContext2d",
+] }
 
 [features]
-hydrate = ["leptos/hydrate", "dep:console_error_panic_hook", "dep:wasm-bindgen"]
+hydrate = [
+    "leptos/hydrate",
+    "dep:console_error_panic_hook",
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+]
 ssr = [
     "dep:axum",
     "dep:axum-extra",

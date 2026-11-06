@@ -46,6 +46,14 @@ const MIGRATIONS: &[&str] = &[
     DROP TABLE ingredients;
     DROP TABLE recipes;
     ALTER TABLE recipes_new RENAME TO recipes;",
+    // 3: uploaded images, referenced from recipe Markdown as `/images/<id>`. AUTOINCREMENT, so an
+    // id is never reused and browsers may cache an image forever.
+    "CREATE TABLE images (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        mime TEXT NOT NULL,
+        data BLOB NOT NULL,
+        created INTEGER NOT NULL DEFAULT (unixepoch())
+    );",
 ];
 
 /// Opens the database at `NOM_DB` (default `nom.db`) and brings its schema up to date.
@@ -154,6 +162,37 @@ pub fn delete_recipe(conn: &Connection, id: i64) -> Result<()> {
     Ok(())
 }
 
+/// Returns the new image's id.
+pub fn insert_image(conn: &Connection, mime: &str, data: &[u8]) -> Result<i64> {
+    conn.prepare_cached("INSERT INTO images (mime, data) VALUES (?1, ?2) RETURNING id")?
+        .query_row((mime, data), |row| row.get(0))
+}
+
+/// The image's MIME type and bytes.
+pub fn get_image(conn: &Connection, id: i64) -> Result<Option<(String, Vec<u8>)>> {
+    conn.prepare_cached("SELECT mime, data FROM images WHERE id = ?1")?
+        .query_row([id], |row| Ok((row.get(0)?, row.get(1)?)))
+        .optional()
+}
+
+/// Deletes images that no recipe mentions as `images/<id>` anymore (with or without the
+/// leading `/`: a relative `images/5` works on every page too). Only those older than a day, so
+/// an image uploaded for a recipe that's still being written survives. Returns how many were
+/// deleted.
+pub fn delete_unused_images(conn: &Connection) -> Result<usize> {
+    // The trailing space guarantees a non-digit after the id, so image 1 doesn't count as
+    // mentioned by `images/12`
+    conn.prepare_cached(
+        "DELETE FROM images
+        WHERE created < unixepoch() - 24 * 60 * 60
+        AND NOT EXISTS (
+            SELECT 1 FROM recipes
+            WHERE ingredients || ' ' || instructions || ' ' GLOB '*images/' || images.id || '[^0-9]*'
+        )",
+    )?
+    .execute([])
+}
+
 pub fn random_recipe_id(conn: &Connection) -> Result<Option<i64>> {
     conn.query_row(
         "SELECT id FROM recipes ORDER BY random() LIMIT 1",
@@ -225,5 +264,53 @@ mod tests {
 
         delete_recipe(&conn, id).unwrap();
         assert_eq!(random_recipe_id(&conn).unwrap(), None);
+    }
+
+    #[test]
+    fn deletes_old_unused_images() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrate(&mut conn).unwrap();
+
+        let ids: Vec<i64> = (0..13)
+            .map(|_| insert_image(&conn, "image/jpeg", b"jpeg").unwrap())
+            .collect();
+        assert_eq!(ids, (1..=13).collect::<Vec<_>>());
+
+        // Mentions 12 (not 1) and a relative 4 in the ingredients, and 3 at the very end of the
+        // instructions
+        insert_recipe(
+            &conn,
+            "Soep",
+            "- ![](/images/12)\n- ![](images/4)",
+            "Klaar. ![](/images/3)",
+        )
+        .unwrap();
+
+        // Everything is recent, so nothing goes yet
+        assert_eq!(delete_unused_images(&conn).unwrap(), 0);
+
+        conn.execute(
+            "UPDATE images SET created = created - 2 * 24 * 60 * 60 WHERE id <> 13",
+            [],
+        )
+        .unwrap();
+        // 1, 2 and 5–11 are old and unused; 3, 4 and 12 are mentioned; 13 is recent
+        assert_eq!(delete_unused_images(&conn).unwrap(), 9);
+
+        let left: Vec<i64> = conn
+            .prepare("SELECT id FROM images ORDER BY id")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_>>()
+            .unwrap();
+        assert_eq!(left, [3, 4, 12, 13]);
+        assert_eq!(
+            get_image(&conn, 3).unwrap().unwrap(),
+            ("image/jpeg".to_string(), b"jpeg".to_vec())
+        );
+
+        // An id is never reused, so a cached /images/<id> can't turn into another image
+        assert_eq!(insert_image(&conn, "image/png", b"png").unwrap(), 14);
     }
 }

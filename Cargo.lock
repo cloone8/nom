@@ -1521,6 +1521,7 @@ dependencies = [
  "tokio",
  "tower-http 0.7.1",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 
@@ -2063,6 +2064,7 @@ dependencies = [
  "hyper",
  "inventory",
  "js-sys",
+ "multer",
  "or_poisoned",
  "pin-project-lite",
  "rustc_version",

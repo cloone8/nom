@@ -51,10 +51,15 @@ async fn main() {
     let routes = generate_route_list(App);
 
     // Routes must be added before the layers, or the layers (auth!) don't apply to them
-    let mut app = Router::new().route(
-        "/random",
-        axum::routing::get(nom_app::recipe::random_recipe_redirect),
-    );
+    let mut app = Router::new()
+        .route(
+            "/random",
+            axum::routing::get(nom_app::recipe::random_recipe_redirect),
+        )
+        .route(
+            "/images/{id}",
+            axum::routing::get(nom_app::images::serve_image),
+        );
 
     if leptos_options.hash_files {
         use axum::http::{HeaderValue, header::CACHE_CONTROL};

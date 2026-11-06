@@ -2,6 +2,7 @@ pub mod app;
 pub mod auth;
 #[cfg(feature = "ssr")]
 pub mod db;
+pub mod images;
 pub mod log;
 #[cfg(feature = "ssr")]
 pub mod markdown;

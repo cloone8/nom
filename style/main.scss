@@ -404,7 +404,8 @@ form:not(.search) {
 	gap: 1.25rem;
 	max-width: 40rem;
 
-	label {
+	// Direct children only: the photo button is a <label> too
+	> label {
 		display: grid;
 		gap: 0.35rem;
 		font-weight: 600;
@@ -426,6 +427,21 @@ form:not(.search) {
 	margin: -0.5rem 0 0;
 	color: var(--muted);
 	font-size: 0.9rem;
+}
+
+.photo {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem;
+
+	.link-button {
+		justify-self: start;
+	}
+
+	.hint {
+		margin: 0;
+	}
 }
 
 .form-actions {
@@ -498,6 +514,11 @@ form:not(.search) {
 
 		.markdown li + li {
 			margin-top: 2px;
+		}
+
+		// Photos dither badly in 1-bit and take the room the text needs
+		.markdown img {
+			display: none;
 		}
 	}
 }

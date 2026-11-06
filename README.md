@@ -9,6 +9,10 @@ Recipe website
 | `NOM_NO_AUTH` | `1` or `true` (any case) runs the site without authentication. Any other value is an error, and so is combining it with `NOM_USERNAME` or `NOM_PASSWORD`. |
 | `NOM_DB` | Path to the SQLite database. Defaults to `nom.db`. |
 
+Photos added to recipes are stored in the database too (`images` table, at most 20 MB per
+upload), so backing up `NOM_DB` backs up everything. Deleting doesn't shrink the file; run
+`VACUUM` on it for that.
+
 An empty variable counts as unset. On a configuration error the server prints the problem and exits with code 1.
 
 <picture>

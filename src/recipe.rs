@@ -143,6 +143,7 @@ pub async fn save_recipe(
             id
         }
     };
+    delete_unused_images(&conn);
     drop(conn);
 
     leptos_axum::redirect(&format!("/recipe/{id}"));
@@ -154,10 +155,24 @@ pub async fn save_recipe(
 pub async fn delete_recipe(id: i64) -> Result<(), ServerFnError> {
     use crate::db;
 
-    db::delete_recipe(&db::connection(), id)?;
+    let conn = db::connection();
+    db::delete_recipe(&conn, id)?;
+    delete_unused_images(&conn);
+    drop(conn);
 
     leptos_axum::redirect("/");
     Ok(())
+}
+
+/// Cleans up after a recipe changed; see [`crate::db::delete_unused_images`]. A failure here
+/// shouldn't fail the save, so it's only logged.
+#[cfg(feature = "ssr")]
+fn delete_unused_images(conn: &rusqlite::Connection) {
+    match crate::db::delete_unused_images(conn) {
+        Ok(0) => {}
+        Ok(deleted) => leptos::logging::log!("Deleted {deleted} unused image(s)"),
+        Err(e) => leptos::logging::log!("Deleting unused images failed: {e}"),
+    }
 }
 
 /// Handler for `GET /random`: redirects to a random recipe, or to the home page if there are none.
