@@ -1,41 +1,66 @@
-// Palette: light by default, dark via prefers-color-scheme.
+// Palette: light by default, dark via prefers-color-scheme ("Auto"), unless the theme button
+// chose one: `<html data-theme="light|dark">`.
 // .trmnl and print force pure black on white further down.
+// Pastel surfaces (cream, mint, peach, lavender) with dark enough text and links: every text
+// colour passes WCAG AA (4.5:1) on the backgrounds it's used on, and field borders reach 3:1.
 :root {
 	color-scheme: light dark;
 
-	--bg: #f7f5f0;
+	--bg: #fdf7f2; // cream
 	--surface: #ffffff;
-	--text: #24211d;
-	--muted: #6b645a;
-	--border: #e2ddd3;
-	--field-border: #8a8378;
-	--accent: #2f6b3a;
-	--accent-hover: #245530;
-	--accent-soft: #e6efe4;
-	--on-accent: #ffffff;
-	--danger: #b3261e;
-	--danger-soft: #fbe9e7;
+	--card: #fff1e8; // peach: the ingredients
+	--text: #3b2f36;
+	--muted: #7a6670;
+	--border: #f0e0e4;
+	--field-border: #a08b96;
+	--accent: #2e7558; // links, markers
+	--accent-hover: #245d46;
+	--accent-soft: #ddf3e8; // mint: current page, hover
+	--accent-fill: #bfe8d3; // primary button
+	--accent-fill-hover: #a9dfc5;
+	--on-accent: #1d4a37;
+	--highlight: #ece6fb; // lavender: recipe list hover
+	--danger: #b0284f;
+	--danger-soft: #fde7ed;
 
-	--radius: 0.5rem;
+	--radius: 0.75rem;
 	--gutter: 1rem;
 	--measure: 65ch; // comfortable line length for running text
 	--page: 52rem; // content width on desktop
 }
 
+@mixin dark {
+	color-scheme: dark;
+
+	--bg: #1f1b22;
+	--surface: #29242d;
+	--card: #2f2629;
+	--text: #f3eaf0;
+	--muted: #b9a9b5;
+	--border: #3c3442;
+	--field-border: #8a7d88;
+	--accent: #9adcbf;
+	--accent-hover: #b3e6cf;
+	--accent-soft: #24382f;
+	--accent-fill: #9adcbf;
+	--accent-fill-hover: #b3e6cf;
+	--on-accent: #1f1b22;
+	--highlight: #2c2740;
+	--danger: #ff9fb3;
+	--danger-soft: #43232d;
+}
+
+:root[data-theme="light"] {
+	color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+	@include dark;
+}
+
 @media (prefers-color-scheme: dark) {
-	:root {
-		--bg: #1a1917;
-		--surface: #24221f;
-		--text: #ece8e1;
-		--muted: #a8a197;
-		--border: #3a3630;
-		--field-border: #857e73;
-		--accent: #8fc79a;
-		--accent-hover: #a6d6b0;
-		--accent-soft: #26332a;
-		--on-accent: #1a1917;
-		--danger: #f08a80;
-		--danger-soft: #3a2321;
+	:root:not([data-theme="light"]) {
+		@include dark;
 	}
 }
 
@@ -73,6 +98,8 @@ h1,
 h2,
 h3 {
 	margin: 0 0 0.75rem;
+	// Rounded where the system has one (Apple); the normal font elsewhere
+	font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 	line-height: 1.2;
 }
 
@@ -139,6 +166,12 @@ code {
 			color: var(--accent);
 		}
 	}
+
+	// The theme button sits apart, on the right
+	.theme {
+		margin-left: auto;
+		font-weight: 400;
+	}
 }
 
 // ---- Buttons -----------------------------------------------------------
@@ -154,7 +187,7 @@ code {
 
 	background: var(--surface);
 	border: 1px solid var(--field-border);
-	border-radius: var(--radius);
+	border-radius: 999px; // pill
 
 	color: var(--text);
 	font: inherit;
@@ -177,13 +210,13 @@ code {
 	}
 
 	&.button-positive {
-		background: var(--accent);
-		border-color: var(--accent);
+		background: var(--accent-fill);
+		border-color: var(--accent-fill);
 		color: var(--on-accent);
 
 		&:hover {
-			background: var(--accent-hover);
-			border-color: var(--accent-hover);
+			background: var(--accent-fill-hover);
+			border-color: var(--accent-fill-hover);
 		}
 	}
 
@@ -252,8 +285,7 @@ textarea {
 		}
 
 		&:hover {
-			background: var(--accent-soft);
-			color: var(--accent);
+			background: var(--highlight);
 		}
 	}
 }
@@ -356,13 +388,36 @@ textarea {
 
 	.ingredients {
 		padding: 1rem 1.25rem;
-		background: var(--surface);
-		border: 1px solid var(--border);
+		background: var(--card);
 		border-radius: var(--radius);
 	}
 
 	.instructions {
 		max-width: var(--measure);
+	}
+
+	.header-photo {
+		display: block;
+		width: 100%;
+		max-height: 24rem;
+		aspect-ratio: 16 / 9;
+		margin-bottom: 1.5rem;
+		object-fit: cover;
+		border-radius: var(--radius);
+	}
+
+	.gallery .photos {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+
+		img {
+			display: block;
+			width: 8rem;
+			aspect-ratio: 1;
+			object-fit: cover;
+			border-radius: var(--radius);
+		}
 	}
 }
 
@@ -375,6 +430,8 @@ textarea {
 		align-items: start;
 
 		> h1,
+		> .header-photo,
+		> .gallery,
 		> .edit {
 			grid-column: 1 / -1;
 		}
@@ -384,7 +441,7 @@ textarea {
 		}
 
 		// Without ingredients, the instructions take the whole row
-		> .instructions:nth-child(2) {
+		&:not(:has(> .ingredients)) > .instructions {
 			grid-column: 1 / -1;
 		}
 
@@ -429,19 +486,88 @@ form:not(.search) {
 	font-size: 0.9rem;
 }
 
-.photo {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
+.markdown-help {
+	margin-top: -0.5rem;
+	color: var(--muted);
+	font-size: 0.9rem;
+
+	summary {
+		cursor: pointer;
+		width: fit-content;
+	}
+
+	table {
+		margin-top: 0.5rem;
+		border-collapse: collapse;
+	}
+
+	td {
+		padding: 0.2rem 1.25rem 0.2rem 0;
+		color: var(--text);
+		vertical-align: baseline;
+	}
+}
+
+.photo-editor {
+	display: grid;
 	gap: 0.75rem;
 
-	.link-button {
-		justify-self: start;
+	.label {
+		font-weight: 600;
 	}
 
 	.hint {
 		margin: 0;
 	}
+}
+
+.thumbnails {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+
+	&:empty {
+		display: none;
+	}
+
+	figure {
+		display: grid;
+		gap: 0.35rem;
+		width: 9rem;
+		margin: 0;
+	}
+
+	img {
+		width: 100%;
+		aspect-ratio: 1;
+		object-fit: cover;
+		border-radius: var(--radius);
+	}
+
+	.link-button,
+	.header-badge {
+		min-height: 2.25rem;
+		padding-block: 0.25rem;
+		font-size: 0.9rem;
+	}
+
+	// Takes the place of the "Maak hoofdfoto" button on the first photo
+	.header-badge {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--accent-soft);
+		border-radius: 999px;
+		color: var(--accent);
+		font-weight: 600;
+	}
+}
+
+.photo-upload {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem;
 }
 
 .form-actions {
@@ -517,7 +643,9 @@ form:not(.search) {
 		}
 
 		// Photos dither badly in 1-bit and take the room the text needs
-		.markdown img {
+		.markdown img,
+		.header-photo,
+		.gallery {
 			display: none;
 		}
 	}
@@ -526,7 +654,11 @@ form:not(.search) {
 // ---- Print -----------------------------------------------------------------
 
 @media print {
-	:root {
+	// Two selectors as specific as the dark ones above (and later), so these win in every theme
+	:root[data-theme],
+	:root:not([data-theme]) {
+		color-scheme: light;
+
 		--bg: #fff;
 		--surface: #fff;
 		--text: #000;

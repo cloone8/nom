@@ -39,6 +39,10 @@ nucleo-matcher = { version = "0.3", optional = true, default-features = false, f
 ] }
 web-sys = { version = "0.3", features = [
     "Window",
+    # Theme button: remembers the choice and sets <html data-theme>
+    "Document",
+    "Element",
+    "Storage",
     # Photo upload: shrinking, uploading and inserting into the text
     "Blob",
     "File",

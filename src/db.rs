@@ -54,6 +54,21 @@ const MIGRATIONS: &[&str] = &[
         data BLOB NOT NULL,
         created INTEGER NOT NULL DEFAULT (unixepoch())
     );",
+    // 4: each image belongs to a recipe; NULL marks a draft, uploaded for a recipe that isn't
+    // saved yet. Existing images go to the first recipe that mentions them; the rest become
+    // drafts.
+    "ALTER TABLE images ADD COLUMN recipe INTEGER;
+    UPDATE images SET recipe = (
+        SELECT id FROM recipes
+        WHERE ingredients || ' ' || instructions || ' ' GLOB '*images/' || images.id || '[^0-9]*'
+        ORDER BY id
+        LIMIT 1
+    );
+    CREATE INDEX images_recipe ON images (recipe);",
+    // 5: the order of a recipe's photos; the first is the header photo. Upload order until
+    // the user changes it.
+    "ALTER TABLE images ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+    UPDATE images SET position = id;",
 ];
 
 /// Opens the database at `NOM_DB` (default `nom.db`) and brings its schema up to date.
@@ -114,16 +129,55 @@ pub fn list_recipes(conn: &Connection) -> Result<Vec<(RecipeSummary, String)>> {
 }
 
 pub fn get_recipe(conn: &Connection, id: i64) -> Result<Option<RecipeSource>> {
-    conn.prepare_cached("SELECT title, ingredients, instructions FROM recipes WHERE id = ?1")?
+    let recipe = conn
+        .prepare_cached("SELECT title, ingredients, instructions FROM recipes WHERE id = ?1")?
         .query_row([id], |row| {
             Ok(RecipeSource {
                 id,
                 title: row.get(0)?,
                 ingredients: row.get(1)?,
                 instructions: row.get(2)?,
+                photos: Vec::new(),
             })
         })
-        .optional()
+        .optional()?;
+
+    recipe
+        .map(|recipe| {
+            Ok(RecipeSource {
+                photos: recipe_photos(conn, id)?,
+                ..recipe
+            })
+        })
+        .transpose()
+}
+
+/// The recipe's photos in order; the first is the header photo.
+fn recipe_photos(conn: &Connection, recipe: i64) -> Result<Vec<i64>> {
+    conn.prepare_cached("SELECT id FROM images WHERE recipe = ?1 ORDER BY position, id")?
+        .query_map([recipe], |row| row.get(0))?
+        .collect()
+}
+
+/// Makes `photos`, in this order, the recipe's photos: drafts among them are linked to it, and
+/// its photos that aren't among them are deleted. Ids of another recipe's photos are ignored.
+pub fn set_recipe_photos(conn: &Connection, recipe: i64, photos: &[i64]) -> Result<()> {
+    for old in recipe_photos(conn, recipe)? {
+        if !photos.contains(&old) {
+            conn.prepare_cached("DELETE FROM images WHERE id = ?1")?
+                .execute([old])?;
+        }
+    }
+
+    for (position, &photo) in photos.iter().enumerate() {
+        conn.prepare_cached(
+            "UPDATE images SET recipe = ?1, position = ?2
+            WHERE id = ?3 AND (recipe IS NULL OR recipe = ?1)",
+        )?
+        .execute([recipe, position as i64, photo])?;
+    }
+
+    Ok(())
 }
 
 /// Returns the new recipe's id.
@@ -155,14 +209,17 @@ pub fn update_recipe(conn: &Connection, recipe: &RecipeSource) -> Result<bool> {
     Ok(updated == 1)
 }
 
+/// Deletes the recipe and its photos.
 pub fn delete_recipe(conn: &Connection, id: i64) -> Result<()> {
+    conn.prepare_cached("DELETE FROM images WHERE recipe = ?1")?
+        .execute([id])?;
     conn.prepare_cached("DELETE FROM recipes WHERE id = ?1")?
         .execute([id])?;
 
     Ok(())
 }
 
-/// Returns the new image's id.
+/// Stores a draft image (no recipe yet; see [`set_recipe_photos`]) and returns its id.
 pub fn insert_image(conn: &Connection, mime: &str, data: &[u8]) -> Result<i64> {
     conn.prepare_cached("INSERT INTO images (mime, data) VALUES (?1, ?2) RETURNING id")?
         .query_row((mime, data), |row| row.get(0))
@@ -175,20 +232,11 @@ pub fn get_image(conn: &Connection, id: i64) -> Result<Option<(String, Vec<u8>)>
         .optional()
 }
 
-/// Deletes images that no recipe mentions as `images/<id>` anymore (with or without the
-/// leading `/`: a relative `images/5` works on every page too). Only those older than a day, so
-/// an image uploaded for a recipe that's still being written survives. Returns how many were
-/// deleted.
-pub fn delete_unused_images(conn: &Connection) -> Result<usize> {
-    // The trailing space guarantees a non-digit after the id, so image 1 doesn't count as
-    // mentioned by `images/12`
+/// Deletes drafts older than a day: uploaded while editing, but never saved with a recipe.
+/// Returns how many were deleted.
+pub fn delete_old_drafts(conn: &Connection) -> Result<usize> {
     conn.prepare_cached(
-        "DELETE FROM images
-        WHERE created < unixepoch() - 24 * 60 * 60
-        AND NOT EXISTS (
-            SELECT 1 FROM recipes
-            WHERE ingredients || ' ' || instructions || ' ' GLOB '*images/' || images.id || '[^0-9]*'
-        )",
+        "DELETE FROM images WHERE recipe IS NULL AND created < unixepoch() - 24 * 60 * 60",
     )?
     .execute([])
 }
@@ -266,51 +314,105 @@ mod tests {
         assert_eq!(random_recipe_id(&conn).unwrap(), None);
     }
 
+    fn all_images(conn: &Connection) -> Vec<(i64, Option<i64>)> {
+        conn.prepare("SELECT id, recipe FROM images ORDER BY id")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<Result<_>>()
+            .unwrap()
+    }
+
     #[test]
-    fn deletes_old_unused_images() {
+    fn migration_4_gives_images_to_the_recipe_that_mentions_them() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(&MIGRATIONS[..3].join("\n")).unwrap();
+        conn.pragma_update(None, "user_version", 3).unwrap();
+
+        for _ in 0..5 {
+            conn.execute(
+                "INSERT INTO images (mime, data) VALUES ('image/jpeg', x'00')",
+                [],
+            )
+            .unwrap();
+        }
+        // `images/12` must not count as 1, a relative `images/3` counts, and 4 at the very end
+        // of the text counts
+        conn.execute_batch(
+            "INSERT INTO recipes (id, title, ingredients, instructions) VALUES
+                (1, 'Soep', '- ![](/images/2) ![](/images/12)', 'Klaar. ![](images/3)'),
+                (2, 'Taart', '', '![](/images/2) ![](/images/4)');",
+        )
+        .unwrap();
+
+        migrate(&mut conn).unwrap();
+
+        // 1 and 5: mentioned nowhere, so drafts. 2: mentioned by both, so the first recipe.
+        assert_eq!(
+            all_images(&conn),
+            [
+                (1, None),
+                (2, Some(1)),
+                (3, Some(1)),
+                (4, Some(2)),
+                (5, None)
+            ]
+        );
+        assert_eq!(get_recipe(&conn, 1).unwrap().unwrap().photos, [2, 3]);
+    }
+
+    #[test]
+    fn photos_belong_to_a_recipe() {
         let mut conn = Connection::open_in_memory().unwrap();
         migrate(&mut conn).unwrap();
 
-        let ids: Vec<i64> = (0..13)
-            .map(|_| insert_image(&conn, "image/jpeg", b"jpeg").unwrap())
-            .collect();
-        assert_eq!(ids, (1..=13).collect::<Vec<_>>());
+        let soup = insert_recipe(&conn, "Soep", "", "").unwrap();
+        let cake = insert_recipe(&conn, "Taart", "", "").unwrap();
+        let photo = || insert_image(&conn, "image/jpeg", b"jpeg").unwrap();
+        let (a, b, c, d) = (photo(), photo(), photo(), photo());
 
-        // Mentions 12 (not 1) and a relative 4 in the ingredients, and 3 at the very end of the
-        // instructions
-        insert_recipe(
-            &conn,
-            "Soep",
-            "- ![](/images/12)\n- ![](images/4)",
-            "Klaar. ![](/images/3)",
-        )
-        .unwrap();
+        set_recipe_photos(&conn, soup, &[a, b]).unwrap();
+        set_recipe_photos(&conn, cake, &[c]).unwrap();
+        assert_eq!(get_recipe(&conn, soup).unwrap().unwrap().photos, [a, b]);
 
-        // Everything is recent, so nothing goes yet
-        assert_eq!(delete_unused_images(&conn).unwrap(), 0);
+        // Dropping b deletes it, adding draft d links it, and the cake's c can't be taken
+        set_recipe_photos(&conn, soup, &[a, c, d]).unwrap();
+        assert_eq!(get_recipe(&conn, soup).unwrap().unwrap().photos, [a, d]);
 
-        conn.execute(
-            "UPDATE images SET created = created - 2 * 24 * 60 * 60 WHERE id <> 13",
-            [],
-        )
-        .unwrap();
-        // 1, 2 and 5–11 are old and unused; 3, 4 and 12 are mentioned; 13 is recent
-        assert_eq!(delete_unused_images(&conn).unwrap(), 9);
+        // The order is kept: d becomes the header photo
+        set_recipe_photos(&conn, soup, &[d, a]).unwrap();
+        assert_eq!(get_recipe(&conn, soup).unwrap().unwrap().photos, [d, a]);
+        assert_eq!(get_recipe(&conn, cake).unwrap().unwrap().photos, [c]);
+        assert!(get_image(&conn, b).unwrap().is_none());
 
-        let left: Vec<i64> = conn
-            .prepare("SELECT id FROM images ORDER BY id")
-            .unwrap()
-            .query_map([], |row| row.get(0))
-            .unwrap()
-            .collect::<Result<_>>()
-            .unwrap();
-        assert_eq!(left, [3, 4, 12, 13]);
-        assert_eq!(
-            get_image(&conn, 3).unwrap().unwrap(),
-            ("image/jpeg".to_string(), b"jpeg".to_vec())
-        );
+        // Deleting a recipe deletes its photos, and only those
+        delete_recipe(&conn, soup).unwrap();
+        assert_eq!(all_images(&conn), [(c, Some(cake))]);
 
         // An id is never reused, so a cached /images/<id> can't turn into another image
-        assert_eq!(insert_image(&conn, "image/png", b"png").unwrap(), 14);
+        assert_eq!(photo(), d + 1);
+    }
+
+    #[test]
+    fn deletes_old_drafts_only() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrate(&mut conn).unwrap();
+
+        let soup = insert_recipe(&conn, "Soep", "", "").unwrap();
+        let photo = || insert_image(&conn, "image/jpeg", b"jpeg").unwrap();
+        let (saved, old_draft, new_draft) = (photo(), photo(), photo());
+        set_recipe_photos(&conn, soup, &[saved]).unwrap();
+
+        // A recent draft may belong to a recipe that's still being written
+        assert_eq!(delete_old_drafts(&conn).unwrap(), 0);
+
+        conn.execute(
+            "UPDATE images SET created = created - 2 * 24 * 60 * 60 WHERE id <> ?1",
+            [new_draft],
+        )
+        .unwrap();
+        assert_eq!(delete_old_drafts(&conn).unwrap(), 1);
+        assert!(get_image(&conn, old_draft).unwrap().is_none());
+        assert_eq!(all_images(&conn), [(saved, Some(soup)), (new_draft, None)]);
     }
 }

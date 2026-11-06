@@ -1,5 +1,6 @@
-//! Photos in recipes: uploaded from the recipe form, stored in the database, served from
-//! `/images/<id>` and placed in the Markdown as `![](/images/<id>)`.
+//! Photos in recipes: uploaded from the recipe form as drafts, which become the recipe's when it
+//! is saved (`db::set_recipe_photos`). Served from `/images/<id>`; the recipe page shows the
+//! first as the header photo and the rest in a gallery.
 
 use leptos::prelude::*;
 use leptos::server_fn::codec::{MultipartData, MultipartFormData};
@@ -75,13 +76,9 @@ pub async fn serve_image(
     }
 }
 
-/// Shrinks `file`, uploads it, and inserts its Markdown at the cursor in `textarea`. Returns a
-/// message to show if that fails.
+/// Shrinks `file` and uploads it as a draft. Returns its id, or a message to show.
 #[cfg(feature = "hydrate")]
-pub async fn upload_and_insert(
-    file: web_sys::File,
-    textarea: web_sys::HtmlTextAreaElement,
-) -> Result<(), String> {
+pub async fn upload(file: web_sys::File) -> Result<i64, String> {
     use wasm_bindgen::JsCast;
 
     // A photo the browser can't decode or encode (an SVG, say) goes up as it is
@@ -93,43 +90,29 @@ pub async fn upload_and_insert(
     form.append_with_blob_and_filename("image", &blob, &file.name())
         .map_err(|_| "Kan de foto niet versturen")?;
 
-    let id = upload_image(form.into())
+    upload_image(form.into())
         .await
         .map_err(|error| match error {
             ServerFnError::ServerError(message) => message,
             other => other.to_string(),
-        })?;
+        })
+}
 
-    // Positions are in UTF-16 units, like `selectionStart`
-    let text: Vec<u16> = textarea.value().encode_utf16().collect();
-    let end = text.len() as u32;
-    let start = textarea.selection_start().ok().flatten().unwrap_or(end);
-    let stop = textarea.selection_end().ok().flatten().unwrap_or(end);
+/// Removes `![](/images/<id>)` from the text, including the line it had to itself (as the
+/// earlier "In tekst" button placed it). Browser only.
+pub fn remove_from_text(textarea: &web_sys::HtmlTextAreaElement, id: i64) {
+    let image = format!("![](/images/{id})");
+    let value = textarea.value();
 
-    // On a line of its own, so it doesn't stick to the text around the cursor
-    let newline = u16::from(b'\n');
-    let before = if start > 0 && text[start as usize - 1] != newline {
-        "\n"
-    } else {
-        ""
-    };
-    let after = if stop < end && text[stop as usize] != newline {
-        "\n"
-    } else {
-        ""
-    };
+    let cleaned = value
+        .replace(&format!("\n{image}\n"), "\n")
+        .replace(&format!("\n{image}"), "")
+        .replace(&format!("{image}\n"), "")
+        .replace(&image, "");
 
-    textarea
-        .set_range_text_with_start_and_end_and_mode(
-            &format!("{before}![](/images/{id}){after}"),
-            start,
-            stop,
-            // Puts the cursor after the inserted text
-            "end",
-        )
-        .map_err(|_| format!("Foto geüpload, maar invoegen lukte niet: ![](/images/{id})"))?;
-
-    Ok(())
+    if cleaned != value {
+        textarea.set_value(&cleaned);
+    }
 }
 
 /// Longest side of an uploaded photo, in pixels.
